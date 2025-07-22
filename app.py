@@ -22,6 +22,10 @@ login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = 'login'
 
+@app.route("/")
+def home():
+    return "¡La aplicación está corriendo correctamente!"
+
 # Configurar OpenAI
 openai.api_key = os.getenv('OPENAI_API_KEY')
 if not openai.api_key:
