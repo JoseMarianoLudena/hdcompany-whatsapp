@@ -432,39 +432,41 @@ def handle_user_input(user_input, user_phone):
         category_match = next((p for p in PRODUCTS if normalized_input in normalize_text(p['categoria'])), None)
         if category_match:
             products_in_category = [p for p in PRODUCTS if p['categoria'] == category_match['categoria']]
-            product_list = "\n".join([f"- {p['nombre']} - {p['precio']}" for p in products_in_category])
-            message = f"Productos en {category_match['categoria']}:\n{product_list}\n¿En qué te puedo ayudar ahora, {active_conversations[user_phone]['name'] or 'Ko'}? 😄"
+            product_list = "\n".join([f"- {p['nombre']} - {p['precio']}" for p in products_in_category[:5]])  # Limitar a 5 productos
+            message = f"Productos en {category_match['categoria']}:\n{product_list}\n¿En qué te ayudo ahora, {active_conversations[user_phone]['name'] or 'Ko'}? 😄"
             active_conversations[user_phone]["state"] = "awaiting_query"
             result = send_whatsapp_message(f"whatsapp:{user_phone}", message, buttons=menu_buttons)
             return {"response": message, "sent_by_app": True}
         else:
             categories = sorted(list(set(p['categoria'] for p in PRODUCTS)))
-            message = f"Lo siento, {active_conversations[user_phone]['name'] or 'Ko'}, no encontré esa categoría. 😅 Prueba con: {', '.join(categories)}."
+            message = f"No encontré esa categoría. 😅 Prueba con: {', '.join(categories)}."
             result = send_whatsapp_message(f"whatsapp:{user_phone}", message)
             return {"response": message, "sent_by_app": True}
 
     # Consulta a OpenAI
     try:
         prompt = (
-            f"Eres un asistente de HD Company, una tienda de laptops y tecnología en Lima, Perú.\n"
+            f"Eres un asistente de HD Company, una tienda de tecnología en Lima, Perú.\n"
             f"Usa la siguiente información para responder:\n"
             f"- Preguntas frecuentes: {json.dumps(FAQS, ensure_ascii=False)}.\n"
             f"- Productos disponibles: {json.dumps(PRODUCTS, ensure_ascii=False)}.\n"
             f"- Categorías: {json.dumps(list(set(p['categoria'] for p in PRODUCTS)), ensure_ascii=False)}.\n"
             f"- Reglas de descuentos: {json.dumps(DISCOUNTS, ensure_ascii=False)}.\n"
-            f"Responde en español, de manera amigable, profesional y concisa a la pregunta: '{user_input}'.\n"
-            f"- Si la pregunta es sobre ubicación, métodos de pago, envíos o contacto, usa las FAQs.\n"
-            f"- Si es sobre categorías, productos o precios, usa los datos de productos y categorías.\n"
+            f"Responde en español, de manera amigable, profesional y concisa (máximo 300 caracteres) a la pregunta: '{user_input}'.\n"
+            f"- Si es sobre ubicación, pagos, envíos o contacto, usa las FAQs.\n"
+            f"- Si es sobre categorías o productos, usa los datos de productos.\n"
             f"- Si es sobre descuentos, usa las reglas de descuentos.\n"
-            f"- No inventes información. Si no sabes la respuesta, di: 'Lo siento, {active_conversations[user_phone]['name'] or 'Ko'}, no tengo suficiente información. 😅 ¿Quieres preguntar otra cosa o volver al menú?'\n"
-            f"- Siempre termina con: '¿En qué te puedo ayudar ahora, {active_conversations[user_phone]['name'] or 'Ko'}? 😄'"
+            f"- No inventes información. Si no sabes, di: 'Lo siento, no tengo esa info. 😅 ¿Otra cosa?'"
+            f"- Termina con: '¿En qué te ayudo ahora, {active_conversations[user_phone]['name'] or 'Ko'}? 😄'"
         )
         response = client.chat.completions.create(
-            model="gpt-4.1",
+            model="gpt-3.5-turbo",
             messages=[{"role": "user", "content": prompt}],
-            max_tokens=500
+            max_tokens=100  # Reducir tokens para menor uso de memoria
         )
         message = response.choices[0].message.content
+        if len(message) > 300:
+            message = message[:297] + "..."  # Truncar a 300 caracteres
         result = send_whatsapp_message(f"whatsapp:{user_phone}", message, buttons=menu_buttons)
         return {"response": message, "sent_by_app": True}
     except Exception as e:
