@@ -271,9 +271,9 @@ def handle_user_input(user_input, user_phone):
     more_info_keywords = ["más información", "más detalles", "sí", "si", "mas info", "detalles", "more_info"]
 
     menu_buttons = [
-        {"id": "products", "title": "Productos y Categorías"},
-        {"id": "support", "title": "Soporte Técnico"},
-        {"id": "agent", "title": "Hablar con un Agente"}
+    {"id": "products", "title": "Productos"},  # Reducido a 9 caracteres
+    {"id": "support", "title": "Soporte Técnico"},  # 14 caracteres
+    {"id": "agent", "title": "Hablar con Agente"}  # 16 caracteres
     ]
 
     info_menu_buttons = [
