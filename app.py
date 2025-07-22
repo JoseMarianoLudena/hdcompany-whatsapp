@@ -9,7 +9,8 @@ import bcrypt
 import json
 import re
 import unicodedata
-import openai
+from openai import OpenAI
+import requests
 
 
 
@@ -27,8 +28,8 @@ def home():
     return "¡La aplicación está corriendo correctamente!"
 
 # Configurar OpenAI
-openai.api_key = os.getenv('OPENAI_API_KEY')
-if not openai.api_key:
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+if not os.getenv("OPENAI_API_KEY"):
     raise ValueError("Falta OPENAI_API_KEY en .env")
 
 # Cargar datos de HD Company
@@ -474,8 +475,9 @@ def handle_user_input(user_input, user_phone):
                 f"- No inventes información. Si no sabes la respuesta, di: 'Lo siento, {active_conversations[user_phone]['name'] or 'Ko'}, no tengo suficiente información. 😅 ¿Quieres preguntar otra cosa o volver al menú?'\n"
                 f"- Siempre termina con: '¿En qué te puedo ayudar ahora, {active_conversations[user_phone]['name'] or 'Ko'}? 😄'"
             )
-            response = openai.ChatCompletion.create(
-                model="gpt-3.5-turbo",
+            client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+            response = client.ChatCompletion.create(
+                model="gpt-4.1",
                 messages=[{"role": "user", "content": prompt}],
                 max_tokens=500
             )
