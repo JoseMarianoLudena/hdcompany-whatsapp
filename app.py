@@ -271,11 +271,10 @@ def handle_user_input(user_input, user_phone):
     more_info_keywords = ["más información", "más detalles", "sí", "si", "mas info", "detalles", "more_info"]
 
     menu_buttons = [
-        {"id": "1", "title": "Productos y Categorías"},
-        {"id": "2", "title": "Ofertas"},
-        {"id": "3", "title": "Soporte Técnico"},
-        {"id": "4", "title": "Otra Pregunta"}
-    ]
+    {"id": "1", "title": "Productos"},
+    {"id": "2", "title": "Ofertas"},
+    {"id": "3", "title": "Soporte Técnico"}
+]
 
     info_menu_buttons = [
         {"id": "more_info", "title": "Más información"},
