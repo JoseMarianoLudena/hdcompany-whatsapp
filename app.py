@@ -271,10 +271,10 @@ def handle_user_input(user_input, user_phone):
     more_info_keywords = ["más información", "más detalles", "sí", "si", "mas info", "detalles", "more_info"]
 
     menu_buttons = [
-    {"id": "1", "title": "Productos"},
-    {"id": "2", "title": "Ofertas"},
-    {"id": "3", "title": "Soporte Técnico"}
-]
+        {"id": "products", "title": "Productos y Categorías"},
+        {"id": "support", "title": "Soporte Técnico"},
+        {"id": "agent", "title": "Hablar con un Agente"}
+    ]
 
     info_menu_buttons = [
         {"id": "more_info", "title": "Más información"},
@@ -293,7 +293,7 @@ def handle_user_input(user_input, user_phone):
 
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     display_message = user_input
-    if any(keyword in user_input.lower() for keyword in escalation_keywords) or user_input == "1":
+    if any(keyword in user_input.lower() for keyword in escalation_keywords) or user_input == "agent":
         display_message = "El usuario quiere hablar con un agente"
 
     active_conversations[user_phone]["messages"].append({"message": display_message, "sender": "client", "timestamp": timestamp})
@@ -319,7 +319,7 @@ def handle_user_input(user_input, user_phone):
         print(f"📢 Conversación escalada para {user_phone}, ignorando mensaje")
         return {"response": ""}
 
-    if any(keyword in user_input.lower() for keyword in escalation_keywords) or user_input == "1":
+    if any(keyword in user_input.lower() for keyword in escalation_keywords) or user_input == "agent":
         print(f"📢 Escalando conversación para {user_phone}")
         active_conversations[user_phone]["escalated"] = True
         send_whatsapp_message(os.getenv("AGENT_PHONE_NUMBER", "whatsapp:+51992436107"), f"🔔 Nueva solicitud de agente humano!\nUsuario: {user_phone}\nMensaje: {user_input}")
@@ -386,56 +386,32 @@ def handle_user_input(user_input, user_phone):
             result = send_whatsapp_message(f"whatsapp:{user_phone}", message, buttons=menu_buttons)
             return {"response": message, "sent_by_app": True}
 
-        # Todos los productos
-        if re.search(r'(todos.*producto[s]?|lista.*producto[s]?|qu[eé].*tienes?|producto[s]? disponible[s]?)', normalized_input) or user_input == "1":
-            product_list = "\n".join([f"- {p['nombre']} - {p['precio']}" for p in PRODUCTS])
-            message = f"Aquí tienes todos nuestros productos:\n{product_list}\n¿En qué te puedo ayudar ahora, {active_conversations[user_phone]['name'] or 'Ko'}? 😄"
-            result = send_whatsapp_message(f"whatsapp:{user_phone}", message, buttons=menu_buttons)
+        # Productos y Categorías
+        if re.search(r'(productos|categor[ií]as?|tipo[s]? de productos?|qu[eé].*tienes?)', normalized_input) or user_input == "products":
+            categories = sorted(list(set(p['categoria'] for p in PRODUCTS)))
+            message = f"Escoge una categoría: {', '.join(categories)}. 😄 Escribe la categoría que quieras ver."
+            active_conversations[user_phone]["state"] = "awaiting_category"
+            result = send_whatsapp_message(f"whatsapp:{user_phone}", message)
             return {"response": message, "sent_by_app": True}
 
-        # Categorías
-        if re.search(r'(categor[ií]as?|tipo[s]? de productos?|qu[eé] tienes?)', normalized_input):
-            categories = list(set(p['categoria'] for p in PRODUCTS))
-            message = f"Tenemos las siguientes categorías: {', '.join(categories)}. ¿Quieres ver productos de alguna categoría específica, {active_conversations[user_phone]['name'] or 'Ko'}? 😄"
-            result = send_whatsapp_message(f"whatsapp:{user_phone}", message, buttons=menu_buttons)
-            return {"response": message, "sent_by_app": True}
-
-        # Productos más caros
-        if re.search(r'(m[aá]s caro[s]?|costoso[s]?|precio[s]? alto[s]?)', normalized_input):
-            sorted_products = sorted(PRODUCTS, key=lambda x: float(x['precio'].replace('PEN ', '')), reverse=True)[:3]
-            product_list = "\n".join([f"- {p['nombre']} - {p['precio']}" for p in sorted_products])
-            message = f"Los productos más caros son:\n{product_list}\n¿En qué te puedo ayudar ahora, {active_conversations[user_phone]['name'] or 'Ko'}? 😄"
-            result = send_whatsapp_message(f"whatsapp:{user_phone}", message, buttons=menu_buttons)
-            return {"response": message, "sent_by_app": True}
-
-        # Productos más baratos
-        if re.search(r'(m[aá]s barato[s]?|econ[oó]mico[s]?|menor precio)', normalized_input) or user_input == "2":
-            sorted_products = sorted(PRODUCTS, key=lambda x: float(x['precio'].replace('PEN ', '')))[:3]
-            product_list = "\n".join([f"- {p['nombre']} - {p['precio']}" for p in sorted_products])
-            message = f"Los productos más baratos son:\n{product_list}\n¿En qué te puedo ayudar ahora, {active_conversations[user_phone]['name'] or 'Ko'}? 😄"
-            result = send_whatsapp_message(f"whatsapp:{user_phone}", message, buttons=menu_buttons)
-            return {"response": message, "sent_by_app": True}
-
-        # Descuentos
-        if re.search(r'(descuento[s]?|oferta[s]?|promoci[oó]n)', normalized_input):
-            discount_text = " ".join([f"Compra {d['quantity']} o más y obtén {d['discount'] * 100}% de descuento." for d in DISCOUNTS['bulk_discounts']])
-            message = f"Nuestros descuentos: {discount_text} ¿En qué te puedo ayudar ahora, {active_conversations[user_phone]['name'] or 'Ko'}? 😄"
-            result = send_whatsapp_message(f"whatsapp:{user_phone}", message, buttons=menu_buttons)
-            return {"response": message, "sent_by_app": True}
-
-        # Productos por categoría
-        if any(keyword in normalized_input for keyword in product_keywords) or user_input == "1":
+        # Categoría seleccionada
+        if active_conversations[user_phone]["state"] == "awaiting_category":
             category_match = next((p for p in PRODUCTS if normalized_input in normalize_text(p['categoria'])), None)
             if category_match:
                 products_in_category = [p for p in PRODUCTS if p['categoria'] == category_match['categoria']]
                 product_list = "\n".join([f"- {p['nombre']} - {p['precio']}" for p in products_in_category])
                 message = f"Productos en {category_match['categoria']}:\n{product_list}\n¿En qué te puedo ayudar ahora, {active_conversations[user_phone]['name'] or 'Ko'}? 😄"
+                active_conversations[user_phone]["state"] = "awaiting_query"
                 result = send_whatsapp_message(f"whatsapp:{user_phone}", message, buttons=menu_buttons)
                 return {"response": message, "sent_by_app": True}
+            else:
+                message = f"Lo siento, {active_conversations[user_phone]['name'] or 'Ko'}, no encontré esa categoría. 😅 Prueba con: {', '.join(sorted(list(set(p['categoria'] for p in PRODUCTS))))}."
+                result = send_whatsapp_message(f"whatsapp:{user_phone}", message)
+                return {"response": message, "sent_by_app": True}
 
-        # Soporte técnico
-        if user_input == "3":
-            message = "📅 Agendar soporte técnico: https://calendly.com/hdcompany/soporte. ¿En qué te puedo ayudar ahora, {active_conversations[user_phone]['name'] or 'Ko'}? 😄"
+        # Soporte Técnico
+        if user_input == "support":
+            message = f"📅 Agendar soporte técnico: https://calendly.com/hdcompany/soporte. ¿En qué te puedo ayudar ahora, {active_conversations[user_phone]['name'] or 'Ko'}? 😄"
             result = send_whatsapp_message(f"whatsapp:{user_phone}", message, buttons=menu_buttons)
             return {"response": message, "sent_by_app": True}
 
@@ -474,9 +450,8 @@ def handle_user_input(user_input, user_phone):
                 f"- No inventes información. Si no sabes la respuesta, di: 'Lo siento, {active_conversations[user_phone]['name'] or 'Ko'}, no tengo suficiente información. 😅 ¿Quieres preguntar otra cosa o volver al menú?'\n"
                 f"- Siempre termina con: '¿En qué te puedo ayudar ahora, {active_conversations[user_phone]['name'] or 'Ko'}? 😄'"
             )
-            client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-            response = client.ChatCompletion.create(
-                model="gpt-4.1",
+            response = client.chat.completions.create(
+                model="gpt-3.5-turbo",
                 messages=[{"role": "user", "content": prompt}],
                 max_tokens=500
             )
