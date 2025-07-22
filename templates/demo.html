@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ShopBot - Tu Asistente de Perfumes</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.5/socket.io.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Poppins', sans-serif;
+            background: linear-gradient(135deg, #f3e7f7 0%, #d9e7ff 100%);
+        }
+        #chat-container {
+            width: 95%;
+            max-width: 380px;
+            max-height: 550px;
+            background: linear-gradient(180deg, #ffffff 0%, #f9fafb 100%);
+            border-radius: 16px;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
+            display: flex;
+            flex-direction: column;
+            margin: 1.5rem auto;
+            transition: max-height 0.3s ease-in-out, transform 0.2s ease;
+        }
+        #chat-container.closed {
+            max-height: 56px;
+            cursor: pointer;
+            transform: scale(0.98);
+        }
+        #chat-container:hover {
+            transform: scale(1.01);
+        }
+        #chat-header {
+            background: linear-gradient(90deg, #6b46c1 0%, #3182ce 100%);
+            color: white;
+            padding: 14px 16px;
+            border-top-left-radius: 16px;
+            border-top-right-radius: 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-weight: 600;
+            font-size: 1.1rem;
+        }
+        #chat-close {
+            cursor: pointer;
+            font-size: 1.2rem;
+            transition: transform 0.2s;
+        }
+        #chat-close:hover {
+            transform: rotate(90deg);
+        }
+        #chat-body {
+            flex: 1;
+            padding: 16px;
+            overflow-y: auto;
+            max-height: 420px;
+            background: #f9fafb;
+            border-bottom: 1px solid #e5e7eb;
+        }
+        #chat-input {
+            display: flex;
+            padding: 12px 16px;
+            background: #ffffff;
+            border-bottom-left-radius: 16px;
+            border-bottom-right-radius: 16px;
+        }
+        #chat-input input {
+            flex: 1;
+            padding: 12px;
+            border: 1px solid #d1d5db;
+            border-radius: 10px;
+            margin-right: 10px;
+            font-family: 'Poppins', sans-serif;
+            font-size: 0.95rem;
+            transition: border-color 0.2s;
+        }
+        #chat-input input:focus {
+            outline: none;
+            border-color: #6b46c1;
+            box-shadow: 0 0 0 3px rgba(107, 70, 193, 0.1);
+        }
+        #chat-input button {
+            background: #6b46c1;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 10px;
+            font-weight: 500;
+            transition: background-color 0.2s;
+        }
+        #chat-input button:hover {
+            background: #5a3da0;
+        }
+        .message {
+            margin: 10px 0;
+            padding: 12px 16px;
+            border-radius: 12px;
+            max-width: 75%;
+            font-size: 0.95rem;
+            line-height: 1.4;
+        }
+        .bot-message {
+            background: #e9d5ff;
+            margin-left: auto;
+            margin-right: 12px;
+            color: #1f2937;
+        }
+        .user-message {
+            background: #dbeafe;
+            margin-right: auto;
+            margin-left: 12px;
+            color: #1f2937;
+        }
+        .button-container {
+            margin-top: 10px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        .chat-button {
+            background: #ede9fe;
+            padding: 10px 16px;
+            border-radius: 10px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            font-weight: 500;
+            transition: background-color 0.2s, transform 0.1s;
+            color: #4b5563;
+        }
+        .chat-button:hover {
+            background: #c4b5fd;
+            transform: translateY(-1px);
+        }
+        .product-image {
+            max-width: 120px;
+            border-radius: 10px;
+            margin-top: 10px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+    </style>
+</head>
+<body class="bg-gray-100">
+    <div class="min-h-screen flex flex-col">
+        <header class="bg-gradient-to-r from-purple-600 to-blue-600 text-white py-8 shadow-lg">
+            <div class="container mx-auto px-4">
+                <h1 class="text-4xl font-bold tracking-tight">ShopBot</h1>
+                <p class="mt-2 text-lg">Tu asistente virtual para perfumes exclusivos</p>
+            </div>
+        </header>
+        <main class="container mx-auto px-4 py-12 flex-grow">
+            <section class="text-center">
+                <h2 class="text-3xl font-semibold mb-6 text-gray-800">Descubre los Mejores Perfumes con ShopBot</h2>
+                <p class="mb-8 text-gray-600 text-lg max-w-2xl mx-auto">Explora nuestro catálogo, encuentra tu fragancia ideal y recibe atención personalizada. ¡Prueba nuestro chatbot ahora!</p>
+                <div id="chat-container" class="mx-auto">
+                    <div id="chat-header">
+                        <span id="chat-title">ShopBot ✨</span>
+                        <button id="chat-close" class="text-white">✖</button>
+                    </div>
+                    <div id="chat-body"></div>
+                    <div id="chat-input">
+                        <input type="text" id="message-input" placeholder="Escribe un mensaje..." />
+                        <button onclick="sendMessage()" class="hover:bg-purple-700">Enviar</button>
+                    </div>
+                </div>
+            </section>
+            <section class="mt-12">
+                <h3 class="text-2xl font-semibold mb-6 text-gray-800 text-center">¿Por qué elegir ShopBot?</h3>
+                <ul class="list-disc list-inside mx-auto max-w-2xl text-gray-600 text-lg">
+                    <li>Encuentra perfumes con información detallada.</li>
+                    <li>Consulta promociones exclusivas al instante.</li>
+                    <li>Conecta con un agente en cualquier momento.</li>
+                </ul>
+            </section>
+        </main>
+        <footer class="bg-gray-800 text-white py-6">
+            <div class="container mx-auto px-4 text-center">
+                <p>© 2025 ShopBot. Todos los derechos reservados.</p>
+                <p>Contáctanos: <a href="mailto:contacto@shopbot.com" class="underline hover:text-blue-300">contacto@shopbot.com</a></p>
+            </div>
+        </footer>
+    </div>
+    <script>
+        const userId = crypto.randomUUID();
+        const socket = io('/chat', { transports: ['websocket'] });
+        const chatContainer = document.getElementById('chat-container');
+        const chatClose = document.getElementById('chat-close');
+        const chatHeader = document.getElementById('chat-header');
+        const chatBody = document.getElementById('chat-body');
+        const chatInput = document.getElementById('chat-input');
+        const chatTitle = document.getElementById('chat-title');
+
+        // Initialize chat
+        chatContainer.classList.remove('closed');
+        chatBody.style.display = 'block';
+        chatInput.style.display = 'flex';
+
+        // Toggle chat visibility
+        chatClose.addEventListener('click', (event) => {
+            event.stopPropagation();
+            chatContainer.classList.add('closed');
+            chatBody.style.display = 'none';
+            chatInput.style.display = 'none';
+        });
+        chatHeader.addEventListener('click', () => {
+            if (chatContainer.classList.contains('closed')) {
+                chatContainer.classList.remove('closed');
+                chatBody.style.display = 'block';
+                chatInput.style.display = 'flex';
+            }
+        });
+
+        // SocketIO events
+        socket.on('connect', () => {
+            console.log('Conectado a SocketIO');
+            appendMessage('bot', '¡Hola! Soy ShopBot, tu asistente de perfumes. 😊 ¿Cuál es tu nombre?');
+        });
+        socket.on('connect_error', (error) => {
+            console.error('Error de conexión SocketIO:', error);
+            appendMessage('bot', '¡Ups! Error de conexión. Intenta recargar la página.');
+        });
+        socket.on('message', (data) => {
+            if (data.response) {
+                appendMessage('bot', data.response, data.buttons || []);
+            }
+        });
+        socket.on('update_title', (data) => {
+            chatTitle.textContent = data.title;
+        });
+
+        // Append message to chat
+        function appendMessage(sender, message, buttons = []) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${sender === 'bot' ? 'bot-message' : 'user-message'}`;
+            messageDiv.textContent = message;
+            chatBody.appendChild(messageDiv);
+
+            // Show Dior image right after user selects "Dior Perfume"
+            if (sender === 'user' && message === 'Dior Perfume') {
+                const imgContainer = document.createElement('div');
+                imgContainer.className = 'button-container';
+                const img = document.createElement('img');
+                img.src = '/static/02.jpeg';
+                img.className = 'product-image';
+                img.alt = 'Dior Perfume';
+                imgContainer.appendChild(img);
+                chatBody.appendChild(imgContainer);
+            }
+
+            // Append buttons
+            if (buttons.length > 0) {
+                const buttonContainer = document.createElement('div');
+                buttonContainer.className = 'button-container';
+                buttons.forEach(button => {
+                    const btn = document.createElement('div');
+                    btn.className = 'chat-button';
+                    btn.textContent = button.title;
+                    btn.onclick = () => {
+                        socket.emit('message', { text: button.id, user_id: userId });
+                        appendMessage('user', button.title);
+                    };
+                    buttonContainer.appendChild(btn);
+                });
+                chatBody.appendChild(buttonContainer);
+            }
+            chatBody.scrollTop = chatBody.scrollHeight;
+        }
+
+        // Send message
+        function sendMessage() {
+            const messageInput = document.getElementById('message-input');
+            const text = messageInput.value.trim();
+            if (text) {
+                socket.emit('message', { text, user_id: userId });
+                appendMessage('user', text);
+                messageInput.value = '';
+            }
+        }
+
+        // Send message on Enter key
+        document.getElementById('message-input').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                sendMessage();
+            }
+        });
+    </script>
+</body>
+</html>

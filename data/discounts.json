@@ -1,0 +1,8 @@
+[
+    {
+  "bulk_discounts": [
+    { "quantity": 2, "discount": 0.05 },
+    { "quantity": 5, "discount": 0.10 }
+  ]
+    }
+]
