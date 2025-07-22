@@ -263,6 +263,7 @@ def normalize_text(text):
     text = ''.join(c for c in unicodedata.normalize('NFD', text) if unicodedata.category(c) != 'Mn')
     return text.lower().strip()
 
+##comienzo del flujo
 def handle_user_input(user_input, user_phone):
     close_keywords = ["gracias", "resuelto", "listo", "ok", "solucionado"]
     escalation_keywords = ["agente", "humano", "persona", "hablar con alguien"]
@@ -271,9 +272,9 @@ def handle_user_input(user_input, user_phone):
     more_info_keywords = ["más información", "más detalles", "sí", "si", "mas info", "detalles", "more_info"]
 
     menu_buttons = [
-    {"id": "products", "title": "Productos"},  # Reducido a 9 caracteres
-    {"id": "support", "title": "Soporte Técnico"},  # 14 caracteres
-    {"id": "agent", "title": "Hablar con Agente"}  # 16 caracteres
+        {"id": "products", "title": "Productos"},
+        {"id": "support", "title": "Soporte Técnico"},
+        {"id": "agent", "title": "Hablar con Agente"}
     ]
 
     info_menu_buttons = [
@@ -394,21 +395,6 @@ def handle_user_input(user_input, user_phone):
             result = send_whatsapp_message(f"whatsapp:{user_phone}", message)
             return {"response": message, "sent_by_app": True}
 
-        # Categoría seleccionada
-        if active_conversations[user_phone]["state"] == "awaiting_category":
-            category_match = next((p for p in PRODUCTS if normalized_input in normalize_text(p['categoria'])), None)
-            if category_match:
-                products_in_category = [p for p in PRODUCTS if p['categoria'] == category_match['categoria']]
-                product_list = "\n".join([f"- {p['nombre']} - {p['precio']}" for p in products_in_category])
-                message = f"Productos en {category_match['categoria']}:\n{product_list}\n¿En qué te puedo ayudar ahora, {active_conversations[user_phone]['name'] or 'Ko'}? 😄"
-                active_conversations[user_phone]["state"] = "awaiting_query"
-                result = send_whatsapp_message(f"whatsapp:{user_phone}", message, buttons=menu_buttons)
-                return {"response": message, "sent_by_app": True}
-            else:
-                message = f"Lo siento, {active_conversations[user_phone]['name'] or 'Ko'}, no encontré esa categoría. 😅 Prueba con: {', '.join(sorted(list(set(p['categoria'] for p in PRODUCTS))))}."
-                result = send_whatsapp_message(f"whatsapp:{user_phone}", message)
-                return {"response": message, "sent_by_app": True}
-
         # Soporte Técnico
         if user_input == "support":
             message = f"📅 Agendar soporte técnico: https://calendly.com/hdcompany/soporte. ¿En qué te puedo ayudar ahora, {active_conversations[user_phone]['name'] or 'Ko'}? 😄"
@@ -423,7 +409,7 @@ def handle_user_input(user_input, user_phone):
                 result = send_whatsapp_message(f"whatsapp:{user_phone}", message, buttons=info_menu_buttons)
                 active_conversations[user_phone]["state"] = "awaiting_menu_confirmation"
                 return {"response": message, "sent_by_app": True}
-            return {"response": "😔 No hay un producto seleccionado. Escribe el nombre de un producto."}
+            return {"response": "😔 No hay un producto seleccionado. Escribe el nombre de un producto.", "sent_by_app": True}
 
         # Producto específico
         info = next((p for p in PRODUCTS if normalized_input in normalize_text(p['nombre'])), None)
@@ -434,35 +420,57 @@ def handle_user_input(user_input, user_phone):
             active_conversations[user_phone]["state"] = "awaiting_menu_confirmation"
             return {"response": message, "sent_by_app": True}
 
-        # Consulta a OpenAI
-        try:
-            prompt = (
-                f"Eres un asistente de HD Company, una tienda de laptops y tecnología en Lima, Perú.\n"
-                f"Usa la siguiente información para responder:\n"
-                f"- Preguntas frecuentes: {json.dumps(FAQS, ensure_ascii=False)}.\n"
-                f"- Productos disponibles: {json.dumps(PRODUCTS, ensure_ascii=False)}.\n"
-                f"- Categorías: {json.dumps(list(set(p['categoria'] for p in PRODUCTS)), ensure_ascii=False)}.\n"
-                f"- Reglas de descuentos: {json.dumps(DISCOUNTS, ensure_ascii=False)}.\n"
-                f"Responde en español, de manera amigable, profesional y concisa a la pregunta: '{user_input}'.\n"
-                f"- Si la pregunta es sobre ubicación, métodos de pago, envíos o contacto, usa las FAQs.\n"
-                f"- Si es sobre categorías, productos o precios, usa los datos de productos y categorías.\n"
-                f"- Si es sobre descuentos, usa las reglas de descuentos.\n"
-                f"- No inventes información. Si no sabes la respuesta, di: 'Lo siento, {active_conversations[user_phone]['name'] or 'Ko'}, no tengo suficiente información. 😅 ¿Quieres preguntar otra cosa o volver al menú?'\n"
-                f"- Siempre termina con: '¿En qué te puedo ayudar ahora, {active_conversations[user_phone]['name'] or 'Ko'}? 😄'"
-            )
-            response = client.chat.completions.create(
-                model="gpt-3.5-turbo",
-                messages=[{"role": "user", "content": prompt}],
-                max_tokens=500
-            )
-            message = response.choices[0].message.content
-            result = send_whatsapp_message(f"whatsapp:{user_phone}", message, buttons=menu_buttons)
-            return {"response": message, "sent_by_app": True}
-        except Exception as e:
-            print(f"❌ Error con OpenAI: {str(e)}")
-            message = f"Lo siento, {active_conversations[user_phone]['name'] or 'Ko'}, no entendí. 😅 ¿Más detalles o elige una opción?"
+    if active_conversations[user_phone]["state"] == "awaiting_category":
+        # Volver al menú
+        if re.search(r'\b(regresar|volver)\s*(al)?\s*(menu|menú)\b', normalized_input) or user_input == "return_menu" or user_input.lower() == "menu":
+            active_conversations[user_phone]["state"] = "awaiting_query"
+            message = "¡Perfecto! 😊 ¿En qué te ayudo ahora?"
             result = send_whatsapp_message(f"whatsapp:{user_phone}", message, buttons=menu_buttons)
             return {"response": message, "sent_by_app": True}
 
+        # Categoría seleccionada
+        category_match = next((p for p in PRODUCTS if normalized_input in normalize_text(p['categoria'])), None)
+        if category_match:
+            products_in_category = [p for p in PRODUCTS if p['categoria'] == category_match['categoria']]
+            product_list = "\n".join([f"- {p['nombre']} - {p['precio']}" for p in products_in_category])
+            message = f"Productos en {category_match['categoria']}:\n{product_list}\n¿En qué te puedo ayudar ahora, {active_conversations[user_phone]['name'] or 'Ko'}? 😄"
+            active_conversations[user_phone]["state"] = "awaiting_query"
+            result = send_whatsapp_message(f"whatsapp:{user_phone}", message, buttons=menu_buttons)
+            return {"response": message, "sent_by_app": True}
+        else:
+            categories = sorted(list(set(p['categoria'] for p in PRODUCTS)))
+            message = f"Lo siento, {active_conversations[user_phone]['name'] or 'Ko'}, no encontré esa categoría. 😅 Prueba con: {', '.join(categories)}."
+            result = send_whatsapp_message(f"whatsapp:{user_phone}", message)
+            return {"response": message, "sent_by_app": True}
+
+    # Consulta a OpenAI
+    try:
+        prompt = (
+            f"Eres un asistente de HD Company, una tienda de laptops y tecnología en Lima, Perú.\n"
+            f"Usa la siguiente información para responder:\n"
+            f"- Preguntas frecuentes: {json.dumps(FAQS, ensure_ascii=False)}.\n"
+            f"- Productos disponibles: {json.dumps(PRODUCTS, ensure_ascii=False)}.\n"
+            f"- Categorías: {json.dumps(list(set(p['categoria'] for p in PRODUCTS)), ensure_ascii=False)}.\n"
+            f"- Reglas de descuentos: {json.dumps(DISCOUNTS, ensure_ascii=False)}.\n"
+            f"Responde en español, de manera amigable, profesional y concisa a la pregunta: '{user_input}'.\n"
+            f"- Si la pregunta es sobre ubicación, métodos de pago, envíos o contacto, usa las FAQs.\n"
+            f"- Si es sobre categorías, productos o precios, usa los datos de productos y categorías.\n"
+            f"- Si es sobre descuentos, usa las reglas de descuentos.\n"
+            f"- No inventes información. Si no sabes la respuesta, di: 'Lo siento, {active_conversations[user_phone]['name'] or 'Ko'}, no tengo suficiente información. 😅 ¿Quieres preguntar otra cosa o volver al menú?'\n"
+            f"- Siempre termina con: '¿En qué te puedo ayudar ahora, {active_conversations[user_phone]['name'] or 'Ko'}? 😄'"
+        )
+        response = client.chat.completions.create(
+            model="gpt-3.5-turbo",
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=500
+        )
+        message = response.choices[0].message.content
+        result = send_whatsapp_message(f"whatsapp:{user_phone}", message, buttons=menu_buttons)
+        return {"response": message, "sent_by_app": True}
+    except Exception as e:
+        print(f"❌ Error con OpenAI: {str(e)}")
+        message = f"Lo siento, {active_conversations[user_phone]['name'] or 'Ko'}, no entendí. 😅 ¿Más detalles o elige una opción?"
+        result = send_whatsapp_message(f"whatsapp:{user_phone}", message, buttons=menu_buttons)
+        return {"response": message, "sent_by_app": True}
 if __name__ == "__main__":
     socketio.run(app, host='0.0.0.0', port=5000, allow_unsafe_werkzeug=True)
