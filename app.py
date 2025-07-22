@@ -11,6 +11,9 @@ import re
 import unicodedata
 import openai
 
+
+
+
 load_dotenv()
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'supersecretkey')
@@ -482,4 +485,4 @@ def handle_user_input(user_input, user_phone):
             return {"response": message, "sent_by_app": True}
 
 if __name__ == "__main__":
-    socketio.run(app, host='0.0.0.0', port=5000)
+    socketio.run(app, host='0.0.0.0', port=5000, allow_unsafe_werkzeug=True)
