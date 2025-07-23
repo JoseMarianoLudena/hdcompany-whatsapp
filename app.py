@@ -383,7 +383,7 @@ def handle_user_input(user_input, user_phone):
                 faq_match = faq
                 break
         if faq_match:
-            message = f"{faq_match['answer']} ¿En qué te puedo ayudar ahora, {active_conversations[user_phone]['name'] or 'Ko'}? 😄"
+            message = f"{faq_match['answer']} ¿En qué te ayudo ahora, {active_conversations[user_phone]['name'] or 'Ko'}? 😄"
             result = send_whatsapp_message(f"whatsapp:{user_phone}", message, buttons=menu_buttons)
             return {"response": message, "sent_by_app": True}
 
@@ -397,9 +397,10 @@ def handle_user_input(user_input, user_phone):
 
         # Soporte Técnico
         if user_input == "support":
-            message = f"📅 Agendar soporte técnico: https://calendly.com/hdcompany/soporte. ¿En qué te puedo ayudar ahora, {active_conversations[user_phone]['name'] or 'Ko'}? 😄"
+            message = f"📅 Agendar soporte técnico: https://calendly.com/hdcompany/soporte. ¿En qué te ayudo ahora, {active_conversations[user_phone]['name'] or 'Ko'}? 😄"
             result = send_whatsapp_message(f"whatsapp:{user_phone}", message, buttons=menu_buttons)
             return {"response": message, "sent_by_app": True}
+
 
         # Más información sobre producto
         if any(keyword in normalized_input for keyword in more_info_keywords) or user_input == "more_info":
@@ -466,19 +467,23 @@ def handle_user_input(user_input, user_phone):
 
     # Consulta a OpenAI
         try:
+            # Incluir los últimos mensajes para dar contexto
+            recent_messages = active_conversations[user_phone]["messages"][-3:]  # Últimos 3 mensajes
+            context = "\n".join([f"{msg['sender']}: {msg['message']}" for msg in recent_messages])
             prompt = (
                 f"Eres un asistente de HD Company, una tienda de tecnología en Lima, Perú.\n"
+                f"Contexto de la conversación:\n{context}\n"
                 f"Usa la siguiente información para responder:\n"
                 f"- Categorías: {json.dumps(list(set(p['categoria'] for p in PRODUCTS)), ensure_ascii=False)}.\n"
                 f"- Productos: {json.dumps(PRODUCTS, ensure_ascii=False)}.\n"
                 f"- Descuentos: {json.dumps(DISCOUNTS, ensure_ascii=False)}.\n"
                 f"Responde en español, amigable, profesional y en máximo 300 caracteres a: '{user_input}'.\n"
-                f"- Si pide un producto (ej. 'case más barato'), busca en la categoría correspondiente (ej. 'Case y Accesorios').\n"
+                f"- Si pide el producto más barato (ej. 'case más barato'), busca en la categoría mencionada o en los productos listados en el contexto.\n"
                 f"- Si no hay info, di: 'Lo siento, no tengo esa info. 😅 ¿Otra cosa?'\n"
                 f"- Termina con: '¿En qué te ayudo ahora, {active_conversations[user_phone]['name'] or 'Ko'}? 😄'"
             )
             response = client.chat.completions.create(
-                model="gpt-4o",  # Cambiado a gpt-4o
+                model="gpt-4.o",  # Cambiado a gpt-4.o
                 messages=[{"role": "user", "content": prompt}],
                 max_tokens=100  # Mantener bajo para optimizar memoria
             )
