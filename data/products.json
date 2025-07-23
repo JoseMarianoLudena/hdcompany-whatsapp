@@ -179,7 +179,8 @@
     "nombre": "Laptop LENOVO IDEAPAD 5 ARE05 – RYZEN 7 4700U, 8GB, SSD 500GB, 14″ FHD, WINDOWS 10",
     "precio": "PEN 2799.00",
     "descripcion": "Laptop Lenovo con procesador Ryzen 7 y pantalla FHD.",
-    "categoria": "Laptops y Accesorios"
+    "categoria": "Laptops y Accesorios",
+    "image_url": "/images/img1.png"
   },
   {
     "id": 27,
@@ -193,21 +194,24 @@
     "nombre": "Laptop HP 250 G9 15.6\" I5-1235U/ 8GB DDR4/ SSD 512GB",
     "precio": "PEN 1800.00",
     "descripcion": "Laptop HP con procesador I5 y pantalla de 15.6\".",
-    "categoria": "Laptops y Accesorios"
+    "categoria": "Laptops y Accesorios",
+    "image_url": "/images/img2.png"
   },
   {
     "id": 29,
     "nombre": "Laptop LENOVO 15.6\" IDEAPAD SLIM 3 15IAH8 I5-12450H/ RAM 8GB DDR5/ SSD 512GB",
     "precio": "PEN 1900.00",
     "descripcion": "Laptop Lenovo con procesador I5 y RAM DDR5.",
-    "categoria": "Laptops y Accesorios"
+    "categoria": "Laptops y Accesorios",
+    "image_url": "/images/img3.png"
   },
   {
     "id": 30,
     "nombre": "Laptop HP ProBook 450 G9 Core i7-1255U, 16GB RAM, 1TB SSD, Pantalla 15.6\", Windows 11",
     "precio": "PEN 1800.00",
     "descripcion": "Laptop HP ProBook con procesador i7 y 1TB SSD.",
-    "categoria": "Laptops y Accesorios"
+    "categoria": "Laptops y Accesorios",
+    "image_url": "/images/img4.png"
   },
   {
     "id": 31,
@@ -865,28 +869,32 @@
     "nombre": "Teclado Inalambrico c/ Touchpad LOGITECH K400 PLUS TV | BLACK",
     "precio": "PEN 119.99",
     "descripcion": "Teclado inalámbrico Logitech K400 Plus con touchpad integrado.",
-    "categoria": "Mouse / Teclado / Pad Mouse / Kit"
+    "categoria": "Mouse / Teclado / Pad Mouse / Kit",
+    "image_url": "/images/img5.png"
   },
   {
     "id": 125,
     "nombre": "Kit Alámbrico Teclado y Mouse LOGITECH MK120 | 920-004428",
     "precio": "PEN 58.00",
     "descripcion": "Kit alámbrico de teclado y mouse Logitech MK120.",
-    "categoria": "Mouse / Teclado / Pad Mouse / Kit"
+    "categoria": "Mouse / Teclado / Pad Mouse / Kit",
+    "image_url": "/images/img6.png"
   },
   {
     "id": 126,
     "nombre": "Teclado Gamer ENKORE Epsilon ENK600 USB Retroiluminado",
     "precio": "PEN 50.00",
     "descripcion": "Teclado gamer ENKORE Epsilon con retroiluminación.",
-    "categoria": "Mouse / Teclado / Pad Mouse / Kit"
+    "categoria": "Mouse / Teclado / Pad Mouse / Kit",
+    "image_url": "/images/img7.png"
   },
   {
     "id": 127,
     "nombre": "Mouse Gamer + Mouse Pad HALION 4D COBRA HA-911P",
     "precio": "PEN 40.00",
     "descripcion": "Combo de mouse gamer y mouse pad HALION 4D Cobra.",
-    "categoria": "Mouse / Teclado / Pad Mouse / Kit"
+    "categoria": "Mouse / Teclado / Pad Mouse / Kit",
+    "image_url": "/images/img8.png"
   },
   {
     "id": 128,
