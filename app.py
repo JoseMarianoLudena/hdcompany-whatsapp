@@ -437,42 +437,61 @@ def handle_user_input(user_input, user_phone):
             active_conversations[user_phone]["state"] = "awaiting_query"
             result = send_whatsapp_message(f"whatsapp:{user_phone}", message, buttons=menu_buttons)
             return {"response": message, "sent_by_app": True}
-        else:
-            categories = sorted(list(set(p['categoria'] for p in PRODUCTS)))
-            message = f"No encontré esa categoría. 😅 Prueba con: {', '.join(categories)}."
-            result = send_whatsapp_message(f"whatsapp:{user_phone}", message)
-            return {"response": message, "sent_by_app": True}
+        
+        # Detectar palabras clave aproximadas para categorías
+        category_keywords = {
+            "case": "Case y Accesorios",
+            "cámara": "Cámaras Web & Vídeo Vigilancia",
+            "disco": "Discos Duros / Discos Sólidos",
+            "impresora": "Impresoras y Accesorios",
+            "laptop": "Laptops y Accesorios",
+            "monitor": "Monitor / TV & Accesorios",
+            "mouse": "Mouse / Teclado / Pad Mouse / Kit",
+            "teclado": "Mouse / Teclado / Pad Mouse / Kit",
+            "tablet": "Tablets y Celulares",
+            "celular": "Tablets y Celulares",
+            "tarjeta": "Tarjetas de Vídeos",
+            "oferta": "OFERTAS"
+        }
+
+        for keyword, category in category_keywords.items():
+            if keyword in normalized_input:
+                products_in_category = [p for p in PRODUCTS if p['categoria'] == category]
+                product_list = "\n".join([f"- {p['nombre']} - {p['precio']}" for p in products_in_category[:5]])
+                message = f"Productos en {category}:\n{product_list}\n¿En qué te ayudo ahora, {active_conversations[user_phone]['name'] or 'Ko'}? 😄"
+                active_conversations[user_phone]["state"] = "awaiting_query"
+                result = send_whatsapp_message(f"whatsapp:{user_phone}", message, buttons=menu_buttons)
+                return {"response": message, "sent_by_app": True}
+
 
     # Consulta a OpenAI
-    try:
-        prompt = (
-            f"Eres un asistente de HD Company, una tienda de tecnología en Lima, Perú.\n"
-            f"Usa la siguiente información para responder:\n"
-            f"- Preguntas frecuentes: {json.dumps(FAQS, ensure_ascii=False)}.\n"
-            f"- Productos disponibles: {json.dumps(PRODUCTS, ensure_ascii=False)}.\n"
-            f"- Categorías: {json.dumps(list(set(p['categoria'] for p in PRODUCTS)), ensure_ascii=False)}.\n"
-            f"- Reglas de descuentos: {json.dumps(DISCOUNTS, ensure_ascii=False)}.\n"
-            f"Responde en español, de manera amigable, profesional y concisa (máximo 300 caracteres) a la pregunta: '{user_input}'.\n"
-            f"- Si es sobre ubicación, pagos, envíos o contacto, usa las FAQs.\n"
-            f"- Si es sobre categorías o productos, usa los datos de productos.\n"
-            f"- Si es sobre descuentos, usa las reglas de descuentos.\n"
-            f"- No inventes información. Si no sabes, di: 'Lo siento, no tengo esa info. 😅 ¿Otra cosa?'"
-            f"- Termina con: '¿En qué te ayudo ahora, {active_conversations[user_phone]['name'] or 'Ko'}? 😄'"
-        )
-        response = client.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=[{"role": "user", "content": prompt}],
-            max_tokens=100  # Reducir tokens para menor uso de memoria
-        )
-        message = response.choices[0].message.content
-        if len(message) > 300:
-            message = message[:297] + "..."  # Truncar a 300 caracteres
-        result = send_whatsapp_message(f"whatsapp:{user_phone}", message, buttons=menu_buttons)
-        return {"response": message, "sent_by_app": True}
-    except Exception as e:
-        print(f"❌ Error con OpenAI: {str(e)}")
-        message = f"Lo siento, {active_conversations[user_phone]['name'] or 'Ko'}, no entendí. 😅 ¿Más detalles o elige una opción?"
-        result = send_whatsapp_message(f"whatsapp:{user_phone}", message, buttons=menu_buttons)
-        return {"response": message, "sent_by_app": True}
+        try:
+            prompt = (
+                f"Eres un asistente de HD Company, una tienda de tecnología en Lima, Perú.\n"
+                f"Usa la siguiente información para responder:\n"
+                f"- Categorías: {json.dumps(list(set(p['categoria'] for p in PRODUCTS)), ensure_ascii=False)}.\n"
+                f"- Productos: {json.dumps(PRODUCTS, ensure_ascii=False)}.\n"
+                f"- Descuentos: {json.dumps(DISCOUNTS, ensure_ascii=False)}.\n"
+                f"Responde en español, amigable, profesional y en máximo 300 caracteres a: '{user_input}'.\n"
+                f"- Si pide un producto (ej. 'case más barato'), busca en la categoría correspondiente (ej. 'Case y Accesorios').\n"
+                f"- Si no hay info, di: 'Lo siento, no tengo esa info. 😅 ¿Otra cosa?'\n"
+                f"- Termina con: '¿En qué te ayudo ahora, {active_conversations[user_phone]['name'] or 'Ko'}? 😄'"
+            )
+            response = client.chat.completions.create(
+                model="gpt-4o",  # Cambiado a gpt-4o
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=100  # Mantener bajo para optimizar memoria
+            )
+            message = response.choices[0].message.content
+            if len(message) > 300:
+                message = message[:297] + "..."  # Truncar a 300 caracteres
+            result = send_whatsapp_message(f"whatsapp:{user_phone}", message, buttons=menu_buttons)
+            return {"response": message, "sent_by_app": True}
+        except Exception as e:
+            print(f"❌ Error con OpenAI: {str(e)}")
+            message = f"Lo siento, {active_conversations[user_phone]['name'] or 'Ko'}, no entendí. 😅 ¿Más detalles o elige una opción?"
+            result = send_whatsapp_message(f"whatsapp:{user_phone}", message, buttons=menu_buttons)
+            return {"response": message, "sent_by_app": True}
+
 if __name__ == "__main__":
     socketio.run(app, host='0.0.0.0', port=5000, allow_unsafe_werkzeug=True)
