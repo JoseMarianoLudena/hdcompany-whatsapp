@@ -14,6 +14,7 @@ import requests
 from flask import send_from_directory
 
 load_dotenv()
+print(f"📢 BASE_URL cargada: {os.getenv('BASE_URL')}")
 app = Flask(__name__)
 
 app.config['UPLOAD_FOLDER'] = 'images'
@@ -28,7 +29,7 @@ login_manager.init_app(app)
 login_manager.login_view = 'login'
 
 # URL base para imágenes (ngrok localmente, Render en producción)
-BASE_URL = os.getenv('BASE_URL', 'http://localhost:5000')  # Ejemplo: https://abc123.ngrok-free.app
+BASE_URL = os.getenv('BASE_URL', 'http://localhost:5000')  # Ejemplo: https://c6b6b7d5cbae.ngrok-free.app
 
 @app.route("/")
 def home():
@@ -127,7 +128,7 @@ def clean_conversations(conversations):
         }
     return cleaned
 
-def send_whatsapp_message(to_phone, message=None, image_url=None, buttons=None):
+def send_whatsapp_message(to_phone, message=None, image_url=None, buttons=None, list_menu=None):
     endpoint = f"https://graph.facebook.com/v20.0/{os.getenv('WHATSAPP_PHONE_NUMBER_ID')}/messages"
     headers = {
         "Authorization": f"Bearer {os.getenv('WHATSAPP_ACCESS_TOKEN')}",
@@ -142,6 +143,21 @@ def send_whatsapp_message(to_phone, message=None, image_url=None, buttons=None):
         payload["image"] = {
             "link": image_url,
             "caption": message or ""
+        }
+    elif list_menu:
+        payload["type"] = "interactive"
+        payload["interactive"] = {
+            "type": "list",
+            "body": {"text": message},
+            "action": {
+                "button": "Ver Categorías",
+                "sections": [
+                    {
+                        "title": "Categorías",
+                        "rows": list_menu
+                    }
+                ]
+            }
         }
     elif buttons:
         payload["type"] = "interactive"
@@ -213,6 +229,9 @@ def process_message():
                     interactive = message.get("interactive", {})
                     if interactive.get("type") == "button_reply":
                         user_input = interactive["button_reply"]["id"]
+                        break
+                    elif interactive.get("type") == "list_reply":
+                        user_input = interactive["list_reply"]["id"]
                         break
 
         if not user_input or not user_phone:
@@ -301,10 +320,13 @@ def find_product_in_response(response_text, products, user_input):
             target_category = category
             break
 
-    # Filtrar productos por categoría si se identificó una
+    # Filtrar productos por categoría si se identificó una, y para laptops solo incluir productos con "Laptop" en el nombre
     filtered_products = products
     if target_category:
-        filtered_products = [p for p in products if p['categoria'] == target_category]
+        if target_category == "Laptops y Accesorios":
+            filtered_products = [p for p in products if p['categoria'] == target_category and "Laptop" in p['nombre']]
+        else:
+            filtered_products = [p for p in products if p['categoria'] == target_category]
         print(f"📢 Filtrando productos por categoría: {target_category}")
 
     # Buscar el producto más relevante
@@ -429,16 +451,23 @@ def handle_user_input(user_input, user_phone):
         if re.search(r'\b(imagen|foto|ver.*producto|cómo.*es|puedo.*ver)\b', normalized_input):
             if active_conversations[user_phone].get("last_product"):
                 product = active_conversations[user_phone]["last_product"]
-                image_url = f"{BASE_URL}{product['image_url']}" if product.get("image_url") else None
-                if image_url:
+                image_path = product['image_url'].lstrip('/') if product.get("image_url") else None
+                image_url = f"{BASE_URL}/{image_path}" if image_path else None
+                print(f"📢 Intentando enviar imagen: {image_url}")
+                # Corregir la ruta del archivo quitando el prefijo 'images/' si ya está incluido
+                file_name = image_path.split('/')[-1] if image_path else None
+                full_path = os.path.join(app.config['UPLOAD_FOLDER'], file_name) if file_name else None
+                print(f"📢 Verificando archivo en: {full_path}")
+                if image_url and full_path and os.path.exists(full_path):
                     message = f"📷 Imagen de {product['nombre']} ¿En qué te ayudo ahora, {active_conversations[user_phone]['name'] or 'Ko'}? 😄"
                     result = send_whatsapp_message(f"whatsapp:{user_phone}", message, image_url=image_url, buttons=menu_buttons)
-                    active_conversations[user_phone]["state"] = "awaiting_query"  # Volver a awaiting_query
+                    active_conversations[user_phone]["state"] = "awaiting_query"
                     return {"response": message, "sent_by_app": True}
                 else:
+                    print(f"❌ Imagen no encontrada o URL inválida: {image_url}, path: {full_path}")
                     message = f"Lo siento, no tengo imagen de {product['nombre']}. 😅 Visita https://mitienda.today/hdcompany para verlo. ¿En qué te ayudo ahora, {active_conversations[user_phone]['name'] or 'Ko'}? 😄"
                     result = send_whatsapp_message(f"whatsapp:{user_phone}", message, buttons=menu_buttons)
-                    active_conversations[user_phone]["state"] = "awaiting_query"  # Volver a awaiting_query
+                    active_conversations[user_phone]["state"] = "awaiting_query"
                     return {"response": message, "sent_by_app": True}
             return {"response": "😔 No hay un producto reciente seleccionado. Escribe el nombre de un producto o pide una recomendación.", "sent_by_app": True}
         # Manejar "more_info"
@@ -484,9 +513,26 @@ def handle_user_input(user_input, user_phone):
         # Productos y Categorías
         if re.search(r'(productos|categor[ií]as?|tipo[s]? de productos?|qu[eé].*tienes?)', normalized_input) or user_input == "products":
             categories = sorted(list(set(p['categoria'] for p in PRODUCTS)))
-            message = f"Escoge una categoría: {', '.join(categories)}. 😄 Escribe la categoría que quieras ver."
+            # Crear lista de botones para el menú interactivo con nombres cortos
+            category_short_names = {
+                "Case y Accesorios": "Case y Accesorios",
+                "Cámaras Web & Vídeo Vigilancia": "Cámaras Web",
+                "Discos Duros / Discos Sólidos": "Discos Duros",
+                "Impresoras y Accesorios": "Impresoras",
+                "Laptops y Accesorios": "Laptops",
+                "Monitor / TV & Accesorios": "Monitores",
+                "Mouse / Teclado / Pad Mouse / Kit": "Mouse y Teclado",
+                "OFERTAS": "Ofertas",
+                "Tablets y Celulares": "Tablets",
+                "Tarjetas de Vídeos": "Tarjetas de Video"
+            }
+            list_menu = [
+                {"id": f"category_{normalize_text(category).replace(' ', '_')}", "title": category_short_names[category][:24]}
+                for category in categories
+            ]
+            message = f"📋 Escoge una categoría o escríbela:"
             active_conversations[user_phone]["state"] = "awaiting_category"
-            result = send_whatsapp_message(f"whatsapp:{user_phone}", message)
+            result = send_whatsapp_message(f"whatsapp:{user_phone}", message, list_menu=list_menu)
             return {"response": message, "sent_by_app": True}
 
         # Producto más barato de la categoría listada
@@ -526,11 +572,17 @@ def handle_user_input(user_input, user_phone):
         info = next((p for p in PRODUCTS if normalized_input in normalize_text(p['nombre'])), None)
         if info and re.search(r'\b(imagen|foto|ver.*producto|cómo.*es|puedo.*ver)\b', normalized_input):
             active_conversations[user_phone]["last_product"] = info
-            image_url = f"{BASE_URL}{info['image_url']}" if info.get("image_url") else None
-            if image_url:
+            image_path = info['image_url'].lstrip('/') if info.get("image_url") else None
+            image_url = f"{BASE_URL}/{image_path}" if image_path else None
+            print(f"📢 Intentando enviar imagen: {image_url}")
+            file_name = image_path.split('/')[-1] if image_path else None
+            full_path = os.path.join(app.config['UPLOAD_FOLDER'], file_name) if file_name else None
+            print(f"📢 Verificando archivo en: {full_path}")
+            if image_url and full_path and os.path.exists(full_path):
                 message = f"📷 Imagen de {info['nombre']} ¿En qué te ayudo ahora, {active_conversations[user_phone]['name'] or 'Ko'}? 😄"
                 result = send_whatsapp_message(f"whatsapp:{user_phone}", message, image_url=image_url, buttons=menu_buttons)
             else:
+                print(f"❌ Imagen no encontrada o URL inválida: {image_url}, path: {full_path}")
                 message = f"Lo siento, no tengo imagen de {info['nombre']}. 😅 Visita https://mitienda.today/hdcompany para verlo. ¿En qué te ayudo ahora, {active_conversations[user_phone]['name'] or 'Ko'}? 😄"
                 result = send_whatsapp_message(f"whatsapp:{user_phone}", message, buttons=menu_buttons)
             return {"response": message, "sent_by_app": True}
@@ -556,14 +608,21 @@ def handle_user_input(user_input, user_phone):
         # Solicitud de imagen
         if re.search(r'\b(imagen|foto|ver.*producto|cómo.*es|puedo.*ver)\b', normalized_input) and active_conversations[user_phone].get("last_product"):
             product = active_conversations[user_phone]["last_product"]
-            image_url = f"{BASE_URL}{product['image_url']}" if product.get("image_url") else None
-            if image_url:
+            image_path = product['image_url'].lstrip('/') if product.get("image_url") else None
+            image_url = f"{BASE_URL}/{image_path}" if image_path else None
+            print(f"📢 Intentando enviar imagen: {image_url}")
+            file_name = image_path.split('/')[-1] if image_path else None
+            full_path = os.path.join(app.config['UPLOAD_FOLDER'], file_name) if file_name else None
+            print(f"📢 Verificando archivo en: {full_path}")
+            if image_url and full_path and os.path.exists(full_path):
                 message = f"📷 Imagen de {product['nombre']} ¿En qué te ayudo ahora, {active_conversations[user_phone]['name'] or 'Ko'}? 😄"
                 result = send_whatsapp_message(f"whatsapp:{user_phone}", message, image_url=image_url, buttons=menu_buttons)
+                return {"response": message, "sent_by_app": True}
             else:
+                print(f"❌ Imagen no encontrada o URL inválida: {image_url}, path: {full_path}")
                 message = f"Lo siento, no tengo imagen de {product['nombre']}. 😅 Visita https://mitienda.today/hdcompany para verlo. ¿En qué te ayudo ahora, {active_conversations[user_phone]['name'] or 'Ko'}? 😄"
                 result = send_whatsapp_message(f"whatsapp:{user_phone}", message, buttons=menu_buttons)
-            return {"response": message, "sent_by_app": True}
+                return {"response": message, "sent_by_app": True}
         elif re.search(r'\b(imagen|foto|ver.*producto|cómo.*es|puedo.*ver)\b', normalized_input):
             return {"response": "😔 No hay un producto reciente seleccionado. Escribe el nombre de un producto o pide una recomendación.", "sent_by_app": True}
 
@@ -612,13 +671,37 @@ def handle_user_input(user_input, user_phone):
             result = send_whatsapp_message(f"whatsapp:{user_phone}", message, buttons=menu_buttons)
             return {"response": message, "sent_by_app": True}
 
-        category_match = next((p for p in PRODUCTS if normalized_input in normalize_text(p['categoria'])), None)
-        if category_match:
-            products_in_category = [p for p in PRODUCTS if p['categoria'] == category_match['categoria']]
+        # Manejar selección de categoría desde el menú interactivo
+        selected_category = None
+        category_short_names = {
+            "Case y Accesorios": "Case y Accesorios",
+            "Cámaras Web & Vídeo Vigilancia": "Cámaras Web",
+            "Discos Duros / Discos Sólidos": "Discos Duros",
+            "Impresoras y Accesorios": "Impresoras",
+            "Laptops y Accesorios": "Laptops",
+            "Monitor / TV & Accesorios": "Monitores",
+            "Mouse / Teclado / Pad Mouse / Kit": "Mouse y Teclado",
+            "OFERTAS": "Ofertas",
+            "Tablets y Celulares": "Tablets",
+            "Tarjetas de Vídeos": "Tarjetas de Video"
+        }
+        if user_input.startswith("category_"):
+            category_id = user_input.replace("category_", "").replace("_", " ")
+            # Mapear el nombre corto al nombre completo
+            selected_category = next((full_name for full_name, short_name in category_short_names.items() if normalize_text(short_name) == normalize_text(category_id)), None)
+        else:
+            # Manejar entrada de texto con búsqueda más flexible
+            for full_name, short_name in category_short_names.items():
+                if normalize_text(short_name) in normalized_input or normalized_input in normalize_text(full_name):
+                    selected_category = full_name
+                    break
+
+        if selected_category:
+            products_in_category = [p for p in PRODUCTS if p['categoria'] == selected_category]
             product_list = "\n".join([f"- {p['nombre']} - {p['precio']}" for p in products_in_category[:5]])
-            message = f"Productos en {category_match['categoria']}:\n{product_list}\n¿En qué te ayudo ahora, {active_conversations[user_phone]['name'] or 'Ko'}? 😄"
+            message = f"Productos en {selected_category}:\n{product_list}\n¿En qué te ayudo ahora, {active_conversations[user_phone]['name'] or 'Ko'}? 😄"
             active_conversations[user_phone]["state"] = "awaiting_query"
-            active_conversations[user_phone]["last_category"] = category_match['categoria']
+            active_conversations[user_phone]["last_category"] = selected_category
             if products_in_category:
                 active_conversations[user_phone]["last_product"] = products_in_category[0]
             result = send_whatsapp_message(f"whatsapp:{user_phone}", message, buttons=menu_buttons)
@@ -668,38 +751,13 @@ def handle_user_input(user_input, user_phone):
                 result = send_whatsapp_message(f"whatsapp:{user_phone}", message, buttons=menu_buttons)
                 return {"response": message, "sent_by_app": True}
 
-        category_keywords = {
-            "case": "Case y Accesorios",
-            "cámara": "Cámaras Web & Vídeo Vigilancia",
-            "disco": "Discos Duros / Discos Sólidos",
-            "impresora": "Impresoras y Accesorios",
-            "laptop": "Laptops y Accesorios",
-            "monitor": "Monitor / TV & Accesorios",
-            "mouse": "Mouse / Teclado / Pad Mouse / Kit",
-            "teclado": "Mouse / Teclado / Pad Mouse / Kit",
-            "tablet": "Tablets y Celulares",
-            "celular": "Tablets y Celulares",
-            "tarjeta": "Tarjetas de Vídeos",
-            "oferta": "OFERTAS"
-        }
-
-        for keyword, category in category_keywords.items():
-            if keyword == normalized_input:  # Coincidencia exacta con palabra clave
-                category_match = next((p for p in PRODUCTS if p['categoria'] == category), None)
-                if category_match:
-                    products_in_category = [p for p in PRODUCTS if p['categoria'] == category_match['categoria']]
-                    product_list = "\n".join([f"- {p['nombre']} - {p['precio']}" for p in products_in_category[:5]])
-                    message = f"Productos en {category_match['categoria']}:\n{product_list}\n¿En qué te ayudo ahora, {active_conversations[user_phone]['name'] or 'Ko'}? 😄"
-                    active_conversations[user_phone]["state"] = "awaiting_query"
-                    active_conversations[user_phone]["last_category"] = category_match['categoria']
-                    if products_in_category:
-                        active_conversations[user_phone]["last_product"] = products_in_category[0]
-                    result = send_whatsapp_message(f"whatsapp:{user_phone}", message, buttons=menu_buttons)
-                    return {"response": message, "sent_by_app": True}
-
         # Si no coincide con ninguna categoría, pedir aclaración
-        message = f"Lo siento, {active_conversations[user_phone]['name'] or 'Ko'}, no entendí la categoría. 😅 Por favor, elige una: {', '.join(sorted(list(set(p['categoria'] for p in PRODUCTS))))}."
-        result = send_whatsapp_message(f"whatsapp:{user_phone}", message, buttons=menu_buttons)
+        message = f"Lo siento, {active_conversations[user_phone]['name'] or 'Ko'}, no entendí la categoría. 😅 Por favor, elige una o escríbelo de nuevo:"
+        list_menu = [
+            {"id": f"category_{normalize_text(category).replace(' ', '_')}", "title": category_short_names[category][:24]}
+            for category in sorted(list(set(p['categoria'] for p in PRODUCTS)))
+        ]
+        result = send_whatsapp_message(f"whatsapp:{user_phone}", message, list_menu=list_menu)
         return {"response": message, "sent_by_app": True}
 
 if __name__ == "__main__":
