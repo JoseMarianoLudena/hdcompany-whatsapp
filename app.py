@@ -138,15 +138,11 @@ def send_whatsapp_message(to_phone, message=None, image_url=None, buttons=None, 
         "to": to_phone.replace("whatsapp:", ""),
     }
     if image_url:
-        # Asegurar que el mensaje sea corto y compatible
-        short_message = (message or "📷 Imagen del producto")[:160]
+    # Asegurar que el mensaje sea corto y compatible
+        short_message = (message or f"📷 Imagen del producto\nVer aquí: {image_url}")[:160]
         payload["type"] = "interactive"
         payload["interactive"] = {
             "type": "button",
-            "header": {
-                "type": "image",
-                "image": {"link": image_url}
-            },
             "body": {"text": short_message},
             "action": {
                 "buttons": [
@@ -514,7 +510,6 @@ def handle_user_input(user_input, user_phone):
             message = f"¡Perfecto! 😊 ¿En qué te ayudo ahora, {active_conversations[user_phone]['name'] or 'Ko'}?"
             result = send_whatsapp_message(f"whatsapp:{user_phone}", message, list_menu=menu_list)
             return {"response": message, "sent_by_app": True}
-        # Manejar solicitud de imagen
         # Manejar solicitud de imagen
         if re.search(r'\b(imagen|foto|ver.*producto|cómo.*es|puedo.*ver)\b', normalized_input) or user_input == "view_image":
             if active_conversations[user_phone].get("last_product"):
