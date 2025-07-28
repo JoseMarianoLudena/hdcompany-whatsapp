@@ -15,8 +15,7 @@ from flask import send_from_directory
 
 load_dotenv()
 print(f"📢 BASE_URL cargada: {os.getenv('BASE_URL')}")
-app = Flask(__name__)
-
+app = Flask(__name__, static_folder='images', static_url_path='/images')
 app.config['UPLOAD_FOLDER'] = 'images'
 @app.route('/images/<path:filename>')
 def serve_image(filename):
