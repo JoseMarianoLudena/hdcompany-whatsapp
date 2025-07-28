@@ -29,7 +29,7 @@ login_manager.init_app(app)
 login_manager.login_view = 'login'
 
 # URL base para imágenes (ngrok localmente, Render en producción)
-BASE_URL = os.getenv('BASE_URL', 'http://localhost:5000')  # Ejemplo: https://c6b6b7d5cbae.ngrok-free.app
+BASE_URL = os.getenv('BASE_URL', 'http://localhost:5000')
 
 @app.route("/")
 def home():
@@ -124,7 +124,7 @@ def clean_conversations(conversations):
             "escalated": bool(data.get("escalated", False)),
             "state": str(data.get("state", "initial")),
             "name": str(data.get("name", "Desconocido")) if data.get("name") else "Desconocido",
-            "last_product": data.get("last_product", None)
+            "last_product": data.get("last_product", {})
         }
     return cleaned
 
@@ -139,21 +139,37 @@ def send_whatsapp_message(to_phone, message=None, image_url=None, buttons=None, 
         "to": to_phone.replace("whatsapp:", ""),
     }
     if image_url:
-        payload["type"] = "image"
-        payload["image"] = {
-            "link": image_url,
-            "caption": message or ""
+        # Asegurar que el mensaje sea corto y compatible
+        short_message = (message or "📷 Imagen del producto")[:160]
+        payload["type"] = "interactive"
+        payload["interactive"] = {
+            "type": "button",
+            "header": {
+                "type": "image",
+                "image": {"link": image_url}
+            },
+            "body": {"text": short_message},
+            "action": {
+                "buttons": [
+                    {"type": "reply", "reply": {"id": btn["id"], "title": btn["title"]}} for btn in buttons
+                ] if buttons else [
+                    {"type": "reply", "reply": {"id": "view_image", "title": "Ver Imagen"}},
+                    {"type": "reply", "reply": {"id": "view_specs", "title": "Ver Especificaciones"}},
+                    {"type": "reply", "reply": {"id": "return_menu", "title": "Regresar al Menú"}}
+                ]
+            }
         }
+        print(f"📢 Payload de imagen enviado: {json.dumps(payload, ensure_ascii=False)}")
     elif list_menu:
         payload["type"] = "interactive"
         payload["interactive"] = {
             "type": "list",
             "body": {"text": message},
             "action": {
-                "button": "Ver Categorías",
+                "button": "Ver Opciones",
                 "sections": [
                     {
-                        "title": "Categorías",
+                        "title": "Menú Principal",
                         "rows": list_menu
                     }
                 ]
@@ -175,6 +191,7 @@ def send_whatsapp_message(to_phone, message=None, image_url=None, buttons=None, 
         payload["text"] = {"body": message}
     try:
         response = requests.post(endpoint, json=payload, headers=headers)
+        print(f"📢 Respuesta de WhatsApp API: {response.status_code} {response.text}")
         if response.status_code == 200:
             message_id = response.json().get("messages", [{}])[0].get("id", "Unknown")
             print(f"📢 Mensaje enviado a {to_phone}: ID {message_id}")
@@ -212,6 +229,8 @@ def logout():
 
 @app.route("/process", methods=["POST"])
 def process_message():
+    print(f"📢 Headers recibidos: {request.headers}")
+    print(f"📢 Raw body recibido: {request.get_data(as_text=True)}")
     webhook_token = request.headers.get("X-Webhook-Token") or request.args.get("hub.verify_token")
     if webhook_token and webhook_token != os.getenv("WHATSAPP_WEBHOOK_TOKEN"):
         print(f"❌ Token de webhook inválido: {webhook_token}")
@@ -261,7 +280,8 @@ def dashboard():
                     "escalated": False,
                     "state": "initial",
                     "name": get_client_name(user_phone),
-                    "last_product": None
+                    "last_product": {},
+                    "last_category": None
                 }
             active_conversations[user_phone]["messages"].append({"message": message, "sender": "agent", "timestamp": timestamp})
             result = send_whatsapp_message(f"whatsapp:{user_phone}", message)
@@ -304,14 +324,14 @@ def find_product_in_response(response_text, products, user_input):
         "celular": "Tablets y Celulares",
         "laptop": "Laptops y Accesorios",
         "computadora": "Laptops y Accesorios",
-        "mouse": "Mouse / Teclado / Pad Mouse / Kit",
-        "teclado": "Mouse / Teclado / Pad Mouse / Kit",
-        "monitor": "Monitor / TV & Accesorios",
+        "mouse": "Mouse y Teclado",
+        "teclado": "Mouse y Teclado",
+        "monitor": "Monitores y TV",
         "case": "Case y Accesorios",
-        "cámara": "Cámaras Web & Vídeo Vigilancia",
-        "disco": "Discos Duros / Discos Sólidos",
+        "cámara": "Cámaras Web y Vigilancia",
+        "disco": "Discos Duros y Sólidos",
         "impresora": "Impresoras y Accesorios",
-        "tarjeta": "Tarjetas de Vídeos",
+        "tarjeta": "Tarjetas de Video",
         "oferta": "OFERTAS"
     }
     target_category = None
@@ -320,11 +340,13 @@ def find_product_in_response(response_text, products, user_input):
             target_category = category
             break
 
-    # Filtrar productos por categoría si se identificó una, y para laptops solo incluir productos con "Laptop" en el nombre
+    # Filtrar productos por categoría si se identificó una
     filtered_products = products
     if target_category:
         if target_category == "Laptops y Accesorios":
             filtered_products = [p for p in products if p['categoria'] == target_category and "Laptop" in p['nombre']]
+        elif target_category == "Impresoras y Accesorios":
+            filtered_products = [p for p in products if p['categoria'] == target_category and "Impresora" in p['nombre']]
         else:
             filtered_products = [p for p in products if p['categoria'] == target_category]
         print(f"📢 Filtrando productos por categoría: {target_category}")
@@ -335,14 +357,15 @@ def find_product_in_response(response_text, products, user_input):
     for product in filtered_products:
         normalized_product_name = normalize_text(product['nombre'])
         product_words = normalized_product_name.split()
-        # Calcular un puntaje de coincidencia basado en palabras clave
         score = 0
         for word in product_words:
             if len(word) > 3 and word in normalized_response:
                 score += 1
-        # También considerar coincidencia del nombre completo
         if normalized_product_name in normalized_response:
-            score += len(product_words)  # Dar mayor peso a coincidencia completa
+            score += len(product_words) * 2
+        if "gamer" in normalized_input and product['categoria'] == "Laptops y Accesorios":
+            if any(spec in normalized_product_name for spec in ["ryzen 7", "core i7", "16gb", "1tb"]):
+                score += 5
         print(f"📢 Evaluando producto: {product['nombre']} (score: {score})")
         if score > best_score:
             best_match = product
@@ -354,22 +377,66 @@ def find_product_in_response(response_text, products, user_input):
     print(f"📢 No se encontró producto en respuesta: {response_text}")
     return None
 
+def find_product_by_name_or_position(user_input, products, last_category=None):
+    normalized_input = normalize_text(user_input)
+    
+    position_keywords = {
+        "primero": 0, "primer": 0, "1": 0,
+        "segundo": 1, "2": 1,
+        "tercero": 2, "3": 2
+    }
+    if last_category:
+        filtered_products = [p for p in products if p['categoria'] == last_category]
+        if last_category == "Laptops y Accesorios":
+            filtered_products = [p for p in filtered_products if "Laptop" in p['nombre']]
+        elif last_category == "Impresoras y Accesorios":
+            filtered_products = [p for p in filtered_products if "Impresora" in p['nombre']]
+        for keyword, index in position_keywords.items():
+            if keyword in normalized_input:
+                if index < len(filtered_products):
+                    return filtered_products[index]
+                return None
+
+    for product in products:
+        normalized_product_name = normalize_text(product['nombre'])
+        if normalized_input in normalized_product_name or normalized_product_name in normalized_input:
+            return product
+    return None
+
 def handle_user_input(user_input, user_phone):
     close_keywords = ["gracias", "resuelto", "listo", "ok", "solucionado"]
     escalation_keywords = ["agente", "humano", "persona", "hablar con alguien"]
     greeting_keywords = ["hola", "qué tal", "buenos días", "buenas tardes", "buenas noches", "hey", "saludos"]
-    product_keywords = ["producto", "artículo", "cargador", "mouse", "laptop", "productos", "lista"]
+    availability_keywords = ["tienes", "hay", "dispones", "existen"]
     more_info_keywords = ["más información", "más detalles", "sí", "si", "mas info", "detalles", "more_info"]
 
-    menu_buttons = [
-        {"id": "products", "title": "Productos"},
-        {"id": "support", "title": "Soporte Técnico"},
+    menu_list = [
+        {"id": "offers", "title": "Ofertas"},
+        {"id": "laptops", "title": "Laptops"},
+        {"id": "printers", "title": "Impresoras"},
+        {"id": "accessories", "title": "Accesorios y Otros"},
+        {"id": "support", "title": "Agendar Soporte Técnico"},
         {"id": "agent", "title": "Hablar con Agente"}
     ]
 
-    info_menu_buttons = [
-        {"id": "more_info", "title": "Más información"},
-        {"id": "return_menu", "title": "Regresar al menú"}
+    product_buttons = [
+        {"id": "view_image", "title": "Ver Imagen"},
+        {"id": "view_specs", "title": "Ver Especificaciones"},
+        {"id": "return_menu", "title": "Regresar al Menú"}
+    ]
+
+    return_menu_button = [
+        {"id": "return_menu", "title": "Regresar al Menú"}
+    ]
+
+    accessory_categories = [
+        {"id": "category_case", "title": "Case y Accesorios"},
+        {"id": "category_cameras", "title": "Cámaras Web y Vigilancia"},
+        {"id": "category_disks", "title": "Discos Duros y Sólidos"},
+        {"id": "category_monitors", "title": "Monitores y TV"},
+        {"id": "category_mouse_keyboard", "title": "Mouse y Teclado"},
+        {"id": "category_video_cards", "title": "Tarjetas de Video"},
+        {"id": "category_tablets", "title": "Tablets y Celulares"}
     ]
 
     if user_phone not in active_conversations:
@@ -379,7 +446,8 @@ def handle_user_input(user_input, user_phone):
             "escalated": False,
             "state": "initial",
             "name": get_client_name(user_phone),
-            "last_product": None
+            "last_product": {},
+            "last_category": None
         }
 
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -424,12 +492,12 @@ def handle_user_input(user_input, user_phone):
         if name and name != "Desconocido":
             active_conversations[user_phone]["state"] = "awaiting_query"
             message = f"¡Hola, {name}! Soy el asistente de HD Company. 😊 ¿En qué te ayudo hoy?"
-            result = send_whatsapp_message(f"whatsapp:{user_phone}", message, buttons=menu_buttons)
+            result = send_whatsapp_message(f"whatsapp:{user_phone}", message, list_menu=menu_list)
             return {"response": message, "sent_by_app": True}
         else:
             active_conversations[user_phone]["state"] = "awaiting_name"
             message = "¡Hola! Soy el asistente de HD Company. 😊 ¿Cuál es tu nombre?"
-            result = send_whatsapp_message(f"whatsapp:{user_phone}", message, buttons=menu_buttons)
+            result = send_whatsapp_message(f"whatsapp:{user_phone}", message, list_menu=menu_list)
             return {"response": message, "sent_by_app": True}
 
     if active_conversations[user_phone]["state"] == "awaiting_name":
@@ -438,52 +506,197 @@ def handle_user_input(user_input, user_phone):
         active_conversations[user_phone]["name"] = name
         active_conversations[user_phone]["state"] = "awaiting_query"
         message = f"¡Encantado, {name}! Soy el asistente de HD Company. 😊 ¿En qué te ayudo hoy?"
-        result = send_whatsapp_message(f"whatsapp:{user_phone}", message, buttons=menu_buttons)
+        result = send_whatsapp_message(f"whatsapp:{user_phone}", message, list_menu=menu_list)
         return {"response": message, "sent_by_app": True}
 
     if active_conversations[user_phone]["state"] == "awaiting_menu_confirmation":
         if re.search(r'\b(regresar|volver)\s*(al)?\s*(menu|menú)\b', normalized_input) or user_input == "return_menu":
             active_conversations[user_phone]["state"] = "awaiting_query"
-            message = "¡Perfecto! 😊 ¿En qué te ayudo ahora?"
-            result = send_whatsapp_message(f"whatsapp:{user_phone}", message, buttons=menu_buttons)
+            message = f"¡Perfecto! 😊 ¿En qué te ayudo ahora, {active_conversations[user_phone]['name'] or 'Ko'}?"
+            result = send_whatsapp_message(f"whatsapp:{user_phone}", message, list_menu=menu_list)
             return {"response": message, "sent_by_app": True}
         # Manejar solicitud de imagen
-        if re.search(r'\b(imagen|foto|ver.*producto|cómo.*es|puedo.*ver)\b', normalized_input):
+        if re.search(r'\b(imagen|foto|ver.*producto|cómo.*es|puedo.*ver)\b', normalized_input) or user_input == "view_image":
             if active_conversations[user_phone].get("last_product"):
                 product = active_conversations[user_phone]["last_product"]
-                image_path = product['image_url'].lstrip('/') if product.get("image_url") else None
+                image_path = product.get('image_url', '').lstrip('/') if product.get("image_url") else None
                 image_url = f"{BASE_URL}/{image_path}" if image_path else None
-                print(f"📢 Intentando enviar imagen: {image_url}")
-                # Corregir la ruta del archivo quitando el prefijo 'images/' si ya está incluido
                 file_name = image_path.split('/')[-1] if image_path else None
-                full_path = os.path.join(app.config['UPLOAD_FOLDER'], file_name) if file_name else None
+                full_path = os.path.join(os.path.dirname(__file__), app.config['UPLOAD_FOLDER'], file_name) if file_name else None
+                print(f"📢 Intentando enviar imagen: {image_url}")
                 print(f"📢 Verificando archivo en: {full_path}")
                 if image_url and full_path and os.path.exists(full_path):
-                    message = f"📷 Imagen de {product['nombre']} ¿En qué te ayudo ahora, {active_conversations[user_phone]['name'] or 'Ko'}? 😄"
-                    result = send_whatsapp_message(f"whatsapp:{user_phone}", message, image_url=image_url, buttons=menu_buttons)
-                    active_conversations[user_phone]["state"] = "awaiting_query"
-                    return {"response": message, "sent_by_app": True}
+                    try:
+                        response = requests.head(image_url, timeout=5)
+                        if response.status_code == 200:
+                            message = f"📷 Imagen de {product['nombre']}\n¿En qué te ayudo ahora, {active_conversations[user_phone]['name'] or 'Ko'}? 😄"
+                            result = send_whatsapp_message(f"whatsapp:{user_phone}", message, image_url=image_url, buttons=product_buttons)
+                            print(f"📢 Imagen accesible, resultado de envío: {result}")
+                            return {"response": message, "sent_by_app": True}
+                        else:
+                            print(f"❌ URL no accesible: {image_url}, código {response.status_code}")
+                            message = f"Lo siento, no puedo mostrar la imagen de {product['nombre']}. 😅 Visita https://mitienda.today/hdcompany para verlo. ¿En qué te ayudo ahora, {active_conversations[user_phone]['name'] or 'Ko'}? 😄"
+                            result = send_whatsapp_message(f"whatsapp:{user_phone}", message, buttons=product_buttons)
+                            return {"response": message, "sent_by_app": True}
+                    except requests.RequestException as e:
+                        print(f"❌ Error al verificar URL: {image_url}, error: {str(e)}")
+                        message = f"Lo siento, no puedo mostrar la imagen de {product['nombre']}. 😅 Visita https://mitienda.today/hdcompany para verlo. ¿En qué te ayudo ahora, {active_conversations[user_phone]['name'] or 'Ko'}? 😄"
+                        result = send_whatsapp_message(f"whatsapp:{user_phone}", message, buttons=product_buttons)
+                        return {"response": message, "sent_by_app": True}
                 else:
                     print(f"❌ Imagen no encontrada o URL inválida: {image_url}, path: {full_path}")
                     message = f"Lo siento, no tengo imagen de {product['nombre']}. 😅 Visita https://mitienda.today/hdcompany para verlo. ¿En qué te ayudo ahora, {active_conversations[user_phone]['name'] or 'Ko'}? 😄"
-                    result = send_whatsapp_message(f"whatsapp:{user_phone}", message, buttons=menu_buttons)
-                    active_conversations[user_phone]["state"] = "awaiting_query"
+                    result = send_whatsapp_message(f"whatsapp:{user_phone}", message, buttons=product_buttons)
                     return {"response": message, "sent_by_app": True}
             return {"response": "😔 No hay un producto reciente seleccionado. Escribe el nombre de un producto o pide una recomendación.", "sent_by_app": True}
-        # Manejar "more_info"
-        if any(keyword in normalized_input for keyword in more_info_keywords) or user_input == "more_info":
+        # Manejar "view_specs"
+        if any(keyword in normalized_input for keyword in more_info_keywords) or user_input == "view_specs":
             if active_conversations[user_phone].get("last_product"):
                 info = active_conversations[user_phone]["last_product"]
-                message = f"🛍️ {info['nombre']}: {info['descripcion']}. 💻 ¿Regresar al menú?"
-                result = send_whatsapp_message(f"whatsapp:{user_phone}", message, buttons=info_menu_buttons)
+                message = f"🛍️ {info['nombre']}: {info['descripcion']}. ¿En qué te ayudo ahora, {active_conversations[user_phone]['name'] or 'Ko'}? 😄"
+                result = send_whatsapp_message(f"whatsapp:{user_phone}", message, buttons=product_buttons)
                 return {"response": message, "sent_by_app": True}
             return {"response": "😔 No hay un producto reciente seleccionado. Escribe el nombre de un producto o pide una recomendación.", "sent_by_app": True}
-        # Si no es una solicitud conocida, volver a awaiting_query y procesar como nueva consulta
-        active_conversations[user_phone]["state"] = "awaiting_query"
-        return handle_user_input(user_input, user_phone)  # Reprocesar el input en awaiting_query
+        # Consulta a OpenAI para cualquier otra entrada
+        try:
+            recent_messages = active_conversations[user_phone]["messages"][-3:]
+            context = "\n".join([f"{msg['sender']}: {msg['message']}" for msg in recent_messages])
+            prompt = (
+                f"Eres un asistente de HD Company, una tienda de tecnología en Lima, Perú.\n"
+                f"Contexto de la conversación:\n{context}\n"
+                f"Usa la siguiente información para responder:\n"
+                f"- Categorías: {json.dumps(list(set(p['categoria'] for p in PRODUCTS)), ensure_ascii=False)}.\n"
+                f"- Productos: {json.dumps(PRODUCTS, ensure_ascii=False)}.\n"
+                f"- Descuentos: {json.dumps(DISCOUNTS, ensure_ascii=False)}.\n"
+                f"- Último producto recomendado: {active_conversations[user_phone].get('last_product', {}).get('nombre', 'ninguno')}.\n"
+                f"Responde en español, amigable, profesional y en máximo 300 caracteres a: '{user_input}'.\n"
+                f"- No respondas a 'muéstrame ofertas', 'ver laptops', 'qué impresoras tienes' o similares con recomendaciones; esas consultas se manejan directamente.\n"
+                f"- Si pide una recomendación (ej. 'qué laptop me recomiendas', 'quiero una laptop gamer'), sugiere un producto relevante de la categoría adecuada (ej. para laptops, usa 'Laptops y Accesorios' y filtra por 'Laptop' en el nombre; para impresoras, usa 'Impresoras y Accesorios' y filtra por 'Impresora'). Usa el nombre exacto del JSON (ej. 'Laptop LENOVO IDEAPAD 5 ARE05') e incluye su precio.\n"
+                f"- Para 'laptop gamer', prioriza laptops con especificaciones altas (ej. Ryzen 7, Core i7, RAM 16GB). Si no hay, elige una laptop disponible.\n"
+                f"- Incluye el nombre exacto del producto al final entre corchetes, ej. [Laptop LENOVO IDEAPAD 5 ARE05].\n"
+                f"- Asegúrate de incluir el nombre y precio del producto en la respuesta antes de los corchetes, ej. 'Te recomiendo la Laptop LENOVO IDEAPAD 5 ARE05 por PEN 2799.00 [Laptop LENOVO IDEAPAD 5 ARE05]'.\n"
+                f"- Si pregunta por el precio (ej. 'cuánto está'), usa el último producto recomendado y devuelve su precio exacto desde el JSON.\n"
+                f"- No inventes productos. Si no sabes o no hay contexto, di: 'Lo siento, no tengo esa info. 😅 ¿Otra cosa?'\n"
+                f"- Termina con: '¿En qué te ayudo ahora, {active_conversations[user_phone]['name'] or 'Ko'}? 😄'"
+            )
+            response = client.chat.completions.create(
+                model="gpt-3.5-turbo",
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=100
+            )
+            message = response.choices[0].message.content if response.choices else "Lo siento, no tengo esa info. 😅 ¿Otra cosa?"
+            found_product = find_product_in_response(message, PRODUCTS, user_input) if message else None
+            if found_product:
+                active_conversations[user_phone]["last_product"] = found_product
+            is_recommendation = re.search(r'\b(recomendar|sugerir|cuál|cual|que|qué|sugiereme|encuentrame)\b', normalized_input)
+            buttons = product_buttons if is_recommendation and found_product else return_menu_button
+            if len(message) > 300:
+                message = message[:297] + "..."
+            result = send_whatsapp_message(f"whatsapp:{user_phone}", message, buttons=buttons)
+            if found_product and is_recommendation:
+                active_conversations[user_phone]["state"] = "awaiting_menu_confirmation"
+            return {"response": message, "sent_by_app": True}
+        except Exception as e:
+            print(f"❌ Error con OpenAI: {str(e)}")
+            message = f"Lo siento, {active_conversations[user_phone]['name'] or 'Ko'}, no entendí. 😅 ¿Más detalles o elige una opción?"
+            result = send_whatsapp_message(f"whatsapp:{user_phone}", message, list_menu=menu_list)
+            return {"response": message, "sent_by_app": True}
 
     if active_conversations[user_phone]["state"] == "awaiting_query":
-        # FAQs
+        normalized_menu_options = {
+            normalize_text(option["title"]): option["id"] for option in menu_list
+        }
+        if normalized_input in normalized_menu_options:
+            user_input = normalized_menu_options[normalized_input]
+            print(f"📢 Mapeando entrada de texto '{normalized_input}' a ID '{user_input}'")
+
+        if re.search(r'\b(regresar|volver)\s*(al)?\s*(menu|menú)\b', normalized_input) or user_input == "return_menu":
+            active_conversations[user_phone]["state"] = "awaiting_query"
+            message = f"¡Perfecto! 😊 ¿En qué te ayudo ahora, {active_conversations[user_phone]['name'] or 'Ko'}?"
+            result = send_whatsapp_message(f"whatsapp:{user_phone}", message, list_menu=menu_list)
+            return {"response": message, "sent_by_app": True}
+
+        if any(keyword in normalized_input for keyword in availability_keywords):
+            if "laptop" in normalized_input or "computadora" in normalized_input:
+                products_in_category = [p for p in PRODUCTS if p['categoria'] == "Laptops y Accesorios" and "Laptop" in p['nombre']]
+                if products_in_category:
+                    product_list = "\n".join([f"- {p['nombre']} - {p['precio']}" for p in products_in_category])
+                    message = f"¡Sí, tenemos laptops! 😄\nProductos en Laptops:\n{product_list}\nSelecciona una laptop o escribe su nombre.\n¿En qué te ayudo ahora, {active_conversations[user_phone]['name'] or 'Ko'}? 😄"
+                    active_conversations[user_phone]["last_category"] = "Laptops y Accesorios"
+                    active_conversations[user_phone]["last_product"] = products_in_category[0]
+                    result = send_whatsapp_message(f"whatsapp:{user_phone}", message, buttons=return_menu_button)
+                    return {"response": message, "sent_by_app": True}
+                else:
+                    message = f"Lo siento, no tenemos laptops disponibles ahora. 😅 ¿En qué te ayudo ahora, {active_conversations[user_phone]['name'] or 'Ko'}? 😄"
+                    result = send_whatsapp_message(f"whatsapp:{user_phone}", message, list_menu=menu_list)
+                    return {"response": message, "sent_by_app": True}
+            elif "impresora" in normalized_input:
+                products_in_category = [p for p in PRODUCTS if p['categoria'] == "Impresoras y Accesorios" and "Impresora" in p['nombre']]
+                if products_in_category:
+                    product_list = "\n".join([f"- {p['nombre']} - {p['precio']}" for p in products_in_category])
+                    message = f"¡Sí, tenemos impresoras! 😄\nProductos en Impresoras:\n{product_list}\nSelecciona una impresora o escribe su nombre.\n¿En qué te ayudo ahora, {active_conversations[user_phone]['name'] or 'Ko'}? 😄"
+                    active_conversations[user_phone]["last_category"] = "Impresoras y Accesorios"
+                    active_conversations[user_phone]["last_product"] = products_in_category[0]
+                    result = send_whatsapp_message(f"whatsapp:{user_phone}", message, buttons=return_menu_button)
+                    return {"response": message, "sent_by_app": True}
+                else:
+                    message = f"Lo siento, no tenemos impresoras disponibles ahora. 😅 ¿En qué te ayudo ahora, {active_conversations[user_phone]['name'] or 'Ko'}? 😄"
+                    result = send_whatsapp_message(f"whatsapp:{user_phone}", message, list_menu=menu_list)
+                    return {"response": message, "sent_by_app": True}
+
+        if user_input == "offers":
+            products_in_category = [p for p in PRODUCTS if p['categoria'] == "OFERTAS"]
+            if products_in_category:
+                product_list = "\n".join([f"- {p['nombre']} - {p['precio']}" for p in products_in_category])
+                message = f"Productos en Ofertas:\n{product_list}\nSelecciona un producto o escribe su nombre.\n¿En qué te ayudo ahora, {active_conversations[user_phone]['name'] or 'Ko'}? 😄"
+                active_conversations[user_phone]["last_category"] = "OFERTAS"
+                active_conversations[user_phone]["last_product"] = products_in_category[0]
+                result = send_whatsapp_message(f"whatsapp:{user_phone}", message, buttons=return_menu_button)
+                return {"response": message, "sent_by_app": True}
+            else:
+                message = f"Lo siento, no hay ofertas disponibles. 😅 ¿En qué te ayudo ahora, {active_conversations[user_phone]['name'] or 'Ko'}? 😄"
+                result = send_whatsapp_message(f"whatsapp:{user_phone}", message, list_menu=menu_list)
+                return {"response": message, "sent_by_app": True}
+
+        if user_input == "laptops":
+            products_in_category = [p for p in PRODUCTS if p['categoria'] == "Laptops y Accesorios" and "Laptop" in p['nombre']]
+            if products_in_category:
+                product_list = "\n".join([f"- {p['nombre']} - {p['precio']}" for p in products_in_category])
+                message = f"Productos en Laptops:\n{product_list}\nSelecciona una laptop o escribe su nombre.\n¿En qué te ayudo ahora, {active_conversations[user_phone]['name'] or 'Ko'}? 😄"
+                active_conversations[user_phone]["last_category"] = "Laptops y Accesorios"
+                active_conversations[user_phone]["last_product"] = products_in_category[0]
+                result = send_whatsapp_message(f"whatsapp:{user_phone}", message, buttons=return_menu_button)
+                return {"response": message, "sent_by_app": True}
+            else:
+                message = f"Lo siento, no hay laptops disponibles. 😅 ¿En qué te ayudo ahora, {active_conversations[user_phone]['name'] or 'Ko'}? 😄"
+                result = send_whatsapp_message(f"whatsapp:{user_phone}", message, list_menu=menu_list)
+                return {"response": message, "sent_by_app": True}
+
+        if user_input == "printers":
+            products_in_category = [p for p in PRODUCTS if p['categoria'] == "Impresoras y Accesorios" and "Impresora" in p['nombre']]
+            if products_in_category:
+                product_list = "\n".join([f"- {p['nombre']} - {p['precio']}" for p in products_in_category])
+                message = f"Productos en Impresoras:\n{product_list}\nSelecciona una impresora o escribe su nombre.\n¿En qué te ayudo ahora, {active_conversations[user_phone]['name'] or 'Ko'}? 😄"
+                active_conversations[user_phone]["last_category"] = "Impresoras y Accesorios"
+                active_conversations[user_phone]["last_product"] = products_in_category[0]
+                result = send_whatsapp_message(f"whatsapp:{user_phone}", message, buttons=return_menu_button)
+                return {"response": message, "sent_by_app": True}
+            else:
+                message = f"Lo siento, no hay impresoras disponibles. 😅 ¿En qué te ayudo ahora, {active_conversations[user_phone]['name'] or 'Ko'}? 😄"
+                result = send_whatsapp_message(f"whatsapp:{user_phone}", message, list_menu=menu_list)
+                return {"response": message, "sent_by_app": True}
+
+        if user_input == "accessories":
+            message = f"Tenemos una variedad de tecnología, por favor escoge una categoría:"
+            active_conversations[user_phone]["state"] = "awaiting_category"
+            result = send_whatsapp_message(f"whatsapp:{user_phone}", message, list_menu=accessory_categories)
+            return {"response": message, "sent_by_app": True}
+
+        if user_input == "support":
+            message = f"📅 Agendar soporte técnico: https://calendly.com/hdcompany/soporte. ¿En qué te ayudo ahora, {active_conversations[user_phone]['name'] or 'Ko'}? 😄"
+            result = send_whatsapp_message(f"whatsapp:{user_phone}", message, list_menu=menu_list)
+            return {"response": message, "sent_by_app": True}
+
         faq_match = None
         for faq in FAQS:
             if faq["question"].lower() == "tienen tienda física":
@@ -507,38 +720,79 @@ def handle_user_input(user_input, user_phone):
                 break
         if faq_match:
             message = f"{faq_match['answer']} ¿En qué te ayudo ahora, {active_conversations[user_phone]['name'] or 'Ko'}? 😄"
-            result = send_whatsapp_message(f"whatsapp:{user_phone}", message, buttons=menu_buttons)
+            result = send_whatsapp_message(f"whatsapp:{user_phone}", message, list_menu=menu_list)
             return {"response": message, "sent_by_app": True}
 
-        # Productos y Categorías
-        if re.search(r'(productos|categor[ií]as?|tipo[s]? de productos?|qu[eé].*tienes?)', normalized_input) or user_input == "products":
-            categories = sorted(list(set(p['categoria'] for p in PRODUCTS)))
-            # Crear lista de botones para el menú interactivo con nombres cortos
-            category_short_names = {
-                "Case y Accesorios": "Case y Accesorios",
-                "Cámaras Web & Vídeo Vigilancia": "Cámaras Web",
-                "Discos Duros / Discos Sólidos": "Discos Duros",
-                "Impresoras y Accesorios": "Impresoras",
-                "Laptops y Accesorios": "Laptops",
-                "Monitor / TV & Accesorios": "Monitores",
-                "Mouse / Teclado / Pad Mouse / Kit": "Mouse y Teclado",
-                "OFERTAS": "Ofertas",
-                "Tablets y Celulares": "Tablets",
-                "Tarjetas de Vídeos": "Tarjetas de Video"
-            }
-            list_menu = [
-                {"id": f"category_{normalize_text(category).replace(' ', '_')}", "title": category_short_names[category][:24]}
-                for category in categories
-            ]
-            message = f"📋 Escoge una categoría o escríbela:"
-            active_conversations[user_phone]["state"] = "awaiting_category"
-            result = send_whatsapp_message(f"whatsapp:{user_phone}", message, list_menu=list_menu)
+        info = find_product_by_name_or_position(user_input, PRODUCTS, active_conversations[user_phone].get("last_category"))
+        if info and re.search(r'\b(imagen|foto|ver.*producto|cómo.*es|puedo.*ver)\b', normalized_input):
+            active_conversations[user_phone]["last_product"] = info
+            image_path = info.get('image_url', '').lstrip('/') if info.get("image_url") else None
+            image_url = f"{BASE_URL}/{image_path}" if image_path else None
+            print(f"📢 Intentando enviar imagen: {image_url}")
+            file_name = image_path.split('/')[-1] if image_path else None
+            full_path = os.path.join(app.config['UPLOAD_FOLDER'], file_name) if file_name else None
+            print(f"📢 Verificando archivo en: {full_path}")
+            if image_url and full_path and os.path.exists(full_path):
+                message = f"📷 Imagen de {info['nombre']}\n¿En qué te ayudo ahora, {active_conversations[user_phone]['name'] or 'Ko'}? 😄"
+                result = send_whatsapp_message(f"whatsapp:{user_phone}", message, image_url=image_url, buttons=product_buttons)
+                active_conversations[user_phone]["state"] = "awaiting_menu_confirmation"
+                return {"response": message, "sent_by_app": True}
+            else:
+                print(f"❌ Imagen no encontrada o URL inválida: {image_url}, path: {full_path}")
+                message = f"Lo siento, no tengo imagen de {info['nombre']}. 😅 Visita https://mitienda.today/hdcompany para verlo. ¿En qué te ayudo ahora, {active_conversations[user_phone]['name'] or 'Ko'}? 😄"
+                result = send_whatsapp_message(f"whatsapp:{user_phone}", message, buttons=product_buttons)
+                active_conversations[user_phone]["state"] = "awaiting_menu_confirmation"
+                return {"response": message, "sent_by_app": True}
+        elif info:
+            active_conversations[user_phone]["last_product"] = info
+            message = f"🛍️ {info['nombre']}: {info['precio']}. Notas: {info['descripcion'][:50]}... ¿En qué te ayudo ahora, {active_conversations[user_phone]['name'] or 'Ko'}? 😄"
+            result = send_whatsapp_message(f"whatsapp:{user_phone}", message, buttons=product_buttons)
+            active_conversations[user_phone]["state"] = "awaiting_menu_confirmation"
             return {"response": message, "sent_by_app": True}
 
-        # Producto más barato de la categoría listada
+        if re.search(r'\b(primero|primer|segundo|1|2|tercero|3)\b', normalized_input) and active_conversations[user_phone].get("last_category"):
+            selected_product = find_product_by_name_or_position(user_input, PRODUCTS, active_conversations[user_phone]["last_category"])
+            if selected_product:
+                active_conversations[user_phone]["last_product"] = selected_product
+                message = f"🛍️ {selected_product['nombre']}: {selected_product['precio']}. Notas: {selected_product['descripcion'][:50]}... ¿En qué te ayudo ahora, {active_conversations[user_phone]['name'] or 'Ko'}? 😄"
+                result = send_whatsapp_message(f"whatsapp:{user_phone}", message, buttons=product_buttons)
+                active_conversations[user_phone]["state"] = "awaiting_menu_confirmation"
+                return {"response": message, "sent_by_app": True}
+
+        if re.search(r'\b(imagen|foto|ver.*producto|cómo.*es|puedo.*ver)\b', normalized_input) or user_input == "view_image":
+            if active_conversations[user_phone].get("last_product"):
+                product = active_conversations[user_phone]["last_product"]
+                image_path = product.get('image_url', '').lstrip('/') if product.get("image_url") else None
+                image_url = f"{BASE_URL}/{image_path}" if image_path else None
+                print(f"📢 Intentando enviar imagen: {image_url}")
+                file_name = image_path.split('/')[-1] if image_path else None
+                full_path = os.path.join(app.config['UPLOAD_FOLDER'], file_name) if file_name else None
+                print(f"📢 Verificando archivo en: {full_path}")
+                if image_url and full_path and os.path.exists(full_path):
+                    message = f"📷 Imagen de {product['nombre']}\n¿En qué te ayudo ahora, {active_conversations[user_phone]['name'] or 'Ko'}? 😄"
+                    result = send_whatsapp_message(f"whatsapp:{user_phone}", message, image_url=image_url, buttons=product_buttons)
+                    active_conversations[user_phone]["state"] = "awaiting_menu_confirmation"
+                    return {"response": message, "sent_by_app": True}
+                else:
+                    print(f"❌ Imagen no encontrada o URL inválida: {image_url}, path: {full_path}")
+                    message = f"Lo siento, no tengo imagen de {product['nombre']}. 😅 Visita https://mitienda.today/hdcompany para verlo. ¿En qué te ayudo ahora, {active_conversations[user_phone]['name'] or 'Ko'}? 😄"
+                    result = send_whatsapp_message(f"whatsapp:{user_phone}", message, buttons=product_buttons)
+                    active_conversations[user_phone]["state"] = "awaiting_menu_confirmation"
+                    return {"response": message, "sent_by_app": True}
+            return {"response": "😔 No hay un producto reciente seleccionado. Escribe el nombre de un producto o pide una recomendación.", "sent_by_app": True}
+
+        if re.search(r'(productos|categor[ií]as?|tipo[s]? de productos?|qu[eé].*tienes?)', normalized_input):
+            message = f"📋 Elige una opción para ver productos o servicios:"
+            result = send_whatsapp_message(f"whatsapp:{user_phone}", message, list_menu=menu_list)
+            return {"response": message, "sent_by_app": True}
+
         if re.search(r'\b(mas barato|más barato|barato de esos|economicos de esos|mas economico|más economico|mas economicos)\b', normalized_input) and active_conversations[user_phone].get("last_category"):
             category = active_conversations[user_phone]["last_category"]
             products_in_category = [p for p in PRODUCTS if p['categoria'] == category]
+            if category == "Laptops y Accesorios":
+                products_in_category = [p for p in products_in_category if "Laptop" in p['nombre']]
+            elif category == "Impresoras y Accesorios":
+                products_in_category = [p for p in products_in_category if "Impresora" in p['nombre']]
             if products_in_category:
                 cheapest_products = sorted(products_in_category, key=lambda p: float(p['precio'].replace('PEN ', '')))
                 cheapest_price = float(cheapest_products[0]['precio'].replace('PEN ', ''))
@@ -549,84 +803,10 @@ def handle_user_input(user_input, user_phone):
                 else:
                     message = f"El más barato en {category} es {cheapest[0]['nombre']} - {cheapest[0]['precio']}. ¿En qué te ayudo ahora, {active_conversations[user_phone]['name'] or 'Ko'}? 😄"
                 active_conversations[user_phone]["last_product"] = cheapest[0]
-                result = send_whatsapp_message(f"whatsapp:{user_phone}", message, buttons=menu_buttons)
-                return {"response": message, "sent_by_app": True}
-
-        # Soporte Técnico
-        if user_input == "support":
-            message = f"📅 Agendar soporte técnico: https://calendly.com/hdcompany/soporte. ¿En qué te ayudo ahora, {active_conversations[user_phone]['name'] or 'Ko'}? 😄"
-            result = send_whatsapp_message(f"whatsapp:{user_phone}", message, buttons=menu_buttons)
-            return {"response": message, "sent_by_app": True}
-
-        # Más información sobre producto
-        if any(keyword in normalized_input for keyword in more_info_keywords) or user_input == "more_info":
-            if active_conversations[user_phone].get("last_product"):
-                info = active_conversations[user_phone]["last_product"]
-                message = f"🛍️ {info['nombre']}: {info['descripcion']}. 💻 ¿Regresar al menú?"
-                result = send_whatsapp_message(f"whatsapp:{user_phone}", message, buttons=info_menu_buttons)
-                active_conversations[user_phone]["state"] = "awaiting_menu_confirmation"
-                return {"response": message, "sent_by_app": True}
-            return {"response": "😔 No hay un producto reciente seleccionado. Escribe el nombre de un producto o pide una recomendación.", "sent_by_app": True}
-
-        # Producto específico o solicitud de imagen de producto específico
-        info = next((p for p in PRODUCTS if normalized_input in normalize_text(p['nombre'])), None)
-        if info and re.search(r'\b(imagen|foto|ver.*producto|cómo.*es|puedo.*ver)\b', normalized_input):
-            active_conversations[user_phone]["last_product"] = info
-            image_path = info['image_url'].lstrip('/') if info.get("image_url") else None
-            image_url = f"{BASE_URL}/{image_path}" if image_path else None
-            print(f"📢 Intentando enviar imagen: {image_url}")
-            file_name = image_path.split('/')[-1] if image_path else None
-            full_path = os.path.join(app.config['UPLOAD_FOLDER'], file_name) if file_name else None
-            print(f"📢 Verificando archivo en: {full_path}")
-            if image_url and full_path and os.path.exists(full_path):
-                message = f"📷 Imagen de {info['nombre']} ¿En qué te ayudo ahora, {active_conversations[user_phone]['name'] or 'Ko'}? 😄"
-                result = send_whatsapp_message(f"whatsapp:{user_phone}", message, image_url=image_url, buttons=menu_buttons)
-            else:
-                print(f"❌ Imagen no encontrada o URL inválida: {image_url}, path: {full_path}")
-                message = f"Lo siento, no tengo imagen de {info['nombre']}. 😅 Visita https://mitienda.today/hdcompany para verlo. ¿En qué te ayudo ahora, {active_conversations[user_phone]['name'] or 'Ko'}? 😄"
-                result = send_whatsapp_message(f"whatsapp:{user_phone}", message, buttons=menu_buttons)
-            return {"response": message, "sent_by_app": True}
-        elif info:
-            active_conversations[user_phone]["last_product"] = info
-            message = f"🛍️ {info['nombre']}: {info['precio']}. Notas: {info['descripcion'][:50]}... 💻 ¿Más info o regresar al menú?"
-            result = send_whatsapp_message(f"whatsapp:{user_phone}", message, buttons=info_menu_buttons)
-            active_conversations[user_phone]["state"] = "awaiting_menu_confirmation"
-            return {"response": message, "sent_by_app": True}
-
-        # Selección de producto por posición (ej. "Quiero el primero")
-        if re.search(r'\b(primero|primer|1)\b', normalized_input) and active_conversations[user_phone].get("last_category"):
-            category = active_conversations[user_phone]["last_category"]
-            products_in_category = [p for p in PRODUCTS if p['categoria'] == category]
-            if products_in_category:
-                selected_product = products_in_category[0]
-                active_conversations[user_phone]["last_product"] = selected_product
-                message = f"🛍️ {selected_product['nombre']}: {selected_product['precio']}. Notas: {selected_product['descripcion'][:50]}... 💻 ¿Más info o regresar al menú?"
-                result = send_whatsapp_message(f"whatsapp:{user_phone}", message, buttons=info_menu_buttons)
+                result = send_whatsapp_message(f"whatsapp:{user_phone}", message, buttons=product_buttons)
                 active_conversations[user_phone]["state"] = "awaiting_menu_confirmation"
                 return {"response": message, "sent_by_app": True}
 
-        # Solicitud de imagen
-        if re.search(r'\b(imagen|foto|ver.*producto|cómo.*es|puedo.*ver)\b', normalized_input) and active_conversations[user_phone].get("last_product"):
-            product = active_conversations[user_phone]["last_product"]
-            image_path = product['image_url'].lstrip('/') if product.get("image_url") else None
-            image_url = f"{BASE_URL}/{image_path}" if image_path else None
-            print(f"📢 Intentando enviar imagen: {image_url}")
-            file_name = image_path.split('/')[-1] if image_path else None
-            full_path = os.path.join(app.config['UPLOAD_FOLDER'], file_name) if file_name else None
-            print(f"📢 Verificando archivo en: {full_path}")
-            if image_url and full_path and os.path.exists(full_path):
-                message = f"📷 Imagen de {product['nombre']} ¿En qué te ayudo ahora, {active_conversations[user_phone]['name'] or 'Ko'}? 😄"
-                result = send_whatsapp_message(f"whatsapp:{user_phone}", message, image_url=image_url, buttons=menu_buttons)
-                return {"response": message, "sent_by_app": True}
-            else:
-                print(f"❌ Imagen no encontrada o URL inválida: {image_url}, path: {full_path}")
-                message = f"Lo siento, no tengo imagen de {product['nombre']}. 😅 Visita https://mitienda.today/hdcompany para verlo. ¿En qué te ayudo ahora, {active_conversations[user_phone]['name'] or 'Ko'}? 😄"
-                result = send_whatsapp_message(f"whatsapp:{user_phone}", message, buttons=menu_buttons)
-                return {"response": message, "sent_by_app": True}
-        elif re.search(r'\b(imagen|foto|ver.*producto|cómo.*es|puedo.*ver)\b', normalized_input):
-            return {"response": "😔 No hay un producto reciente seleccionado. Escribe el nombre de un producto o pide una recomendación.", "sent_by_app": True}
-
-        # Consulta a OpenAI
         try:
             recent_messages = active_conversations[user_phone]["messages"][-3:]
             context = "\n".join([f"{msg['sender']}: {msg['message']}" for msg in recent_messages])
@@ -637,7 +817,95 @@ def handle_user_input(user_input, user_phone):
                 f"- Categorías: {json.dumps(list(set(p['categoria'] for p in PRODUCTS)), ensure_ascii=False)}.\n"
                 f"- Productos: {json.dumps(PRODUCTS, ensure_ascii=False)}.\n"
                 f"- Descuentos: {json.dumps(DISCOUNTS, ensure_ascii=False)}.\n"
+                f"- Último producto recomendado: {active_conversations[user_phone].get('last_product', {}).get('nombre', 'ninguno')}.\n"
                 f"Responde en español, amigable, profesional y en máximo 300 caracteres a: '{user_input}'.\n"
+                f"- No respondas a 'muéstrame ofertas', 'ver laptops', 'qué impresoras tienes' o similares con recomendaciones; esas consultas se manejan directamente.\n"
+                f"- Si pide una recomendación (ej. 'qué laptop me recomiendas', 'quiero una laptop gamer'), sugiere un producto relevante de la categoría adecuada (ej. para laptops, usa 'Laptops y Accesorios' y filtra por 'Laptop' en el nombre; para impresoras, usa 'Impresoras y Accesorios' y filtra por 'Impresora'). Usa el nombre exacto del JSON (ej. 'Laptop LENOVO IDEAPAD 5 ARE05') e incluye su precio.\n"
+                f"- Para 'laptop gamer', prioriza laptops con especificaciones altas (ej. Ryzen 7, Core i7, RAM 16GB). Si no hay, elige una laptop disponible.\n"
+                f"- Incluye el nombre exacto del producto al final entre corchetes, ej. [Laptop LENOVO IDEAPAD 5 ARE05].\n"
+                f"- Asegúrate de incluir el nombre y precio del producto en la respuesta antes de los corchetes, ej. 'Te recomiendo la Laptop LENOVO IDEAPAD 5 ARE05 por PEN 2799.00 [Laptop LENOVO IDEAPAD 5 ARE05]'.\n"
+                f"- Si pregunta por el precio (ej. 'cuánto está'), usa el último producto recomendado y devuelve su precio exacto desde el JSON.\n"
+                f"- No inventes productos. Si no sabes o no hay contexto, di: 'Lo siento, no tengo esa info. 😅 ¿Otra cosa?'\n"
+                f"- Termina con: '¿En qué te ayudo ahora, {active_conversations[user_phone]['name'] or 'Ko'}? 😄'"
+            )
+            response = client.chat.completions.create(
+                model="gpt-3.5-turbo",
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=100
+            )
+            message = response.choices[0].message.content if response.choices else "Lo siento, no tengo esa info. 😅 ¿Otra cosa?"
+            found_product = find_product_in_response(message, PRODUCTS, user_input) if message else None
+            if found_product:
+                active_conversations[user_phone]["last_product"] = found_product
+            is_recommendation = re.search(r'\b(recomendar|sugerir|cuál|cual|que|qué|sugiereme|encuentrame)\b', normalized_input)
+            buttons = product_buttons if is_recommendation and found_product else return_menu_button
+            if len(message) > 300:
+                message = message[:297] + "..."
+            result = send_whatsapp_message(f"whatsapp:{user_phone}", message, buttons=buttons)
+            if found_product and is_recommendation:
+                active_conversations[user_phone]["state"] = "awaiting_menu_confirmation"
+            return {"response": message, "sent_by_app": True}
+        except Exception as e:
+            print(f"❌ Error con OpenAI: {str(e)}")
+            message = f"Lo siento, {active_conversations[user_phone]['name'] or 'Ko'}, no entendí. 😅 ¿Más detalles o elige una opción?"
+            result = send_whatsapp_message(f"whatsapp:{user_phone}", message, list_menu=menu_list)
+            return {"response": message, "sent_by_app": True}
+
+    if active_conversations[user_phone]["state"] == "awaiting_category":
+        if re.search(r'\b(regresar|volver)\s*(al)?\s*(menu|menú)\b', normalized_input) or user_input == "return_menu" or user_input.lower() == "menu":
+            active_conversations[user_phone]["state"] = "awaiting_query"
+            message = f"¡Perfecto! 😊 ¿En qué te ayudo ahora, {active_conversations[user_phone]['name'] or 'Ko'}?"
+            result = send_whatsapp_message(f"whatsapp:{user_phone}", message, list_menu=menu_list)
+            return {"response": message, "sent_by_app": True}
+
+        selected_category = None
+        category_short_names = {
+            "Case y Accesorios": "Case y Accesorios",
+            "Cámaras Web y Vigilancia": "Cámaras Web",
+            "Discos Duros y Sólidos": "Discos Duros",
+            "Monitores y TV": "Monitores",
+            "Mouse y Teclado": "Mouse y Teclado",
+            "Tarjetas de Video": "Tarjetas de Video",
+            "Tablets y Celulares": "Tablets"
+        }
+        if user_input.startswith("category_"):
+            category_id = user_input.replace("category_", "").replace("_", " ")
+            selected_category = next((full_name for full_name, short_name in category_short_names.items() if normalize_text(short_name) == normalize_text(category_id)), None)
+        else:
+            for full_name, short_name in category_short_names.items():
+                if normalize_text(short_name) in normalized_input or normalized_input in normalize_text(full_name):
+                    selected_category = full_name
+                    break
+
+        if selected_category:
+            products_in_category = [p for p in PRODUCTS if p['categoria'] == selected_category]
+            if products_in_category:
+                product_list = "\n".join([f"- {p['nombre']} - {p['precio']}" for p in products_in_category[:5]])
+                message = f"Productos en {selected_category}:\n{product_list}\n¿En qué te ayudo ahora, {active_conversations[user_phone]['name'] or 'Ko'}? 😄"
+                active_conversations[user_phone]["last_category"] = selected_category
+                active_conversations[user_phone]["last_product"] = products_in_category[0]
+                result = send_whatsapp_message(f"whatsapp:{user_phone}", message, buttons=return_menu_button)
+                active_conversations[user_phone]["state"] = "awaiting_query"
+                return {"response": message, "sent_by_app": True}
+            else:
+                message = f"Lo siento, no hay productos disponibles en {selected_category}. 😅 ¿En qué te ayudo ahora, {active_conversations[user_phone]['name'] or 'Ko'}? 😄"
+                result = send_whatsapp_message(f"whatsapp:{user_phone}", message, list_menu=menu_list)
+                active_conversations[user_phone]["state"] = "awaiting_query"
+                return {"response": message, "sent_by_app": True}
+
+        try:
+            recent_messages = active_conversations[user_phone]["messages"][-3:]
+            context = "\n".join([f"{msg['sender']}: {msg['message']}" for msg in recent_messages])
+            prompt = (
+                f"Eres un asistente de HD Company, una tienda de tecnología en Lima, Perú.\n"
+                f"Contexto de la conversación:\n{context}\n"
+                f"Usa la siguiente información para responder:\n"
+                f"- Categorías: {json.dumps(list(set(p['categoria'] for p in PRODUCTS)), ensure_ascii=False)}.\n"
+                f"- Productos: {json.dumps(PRODUCTS, ensure_ascii=False)}.\n"
+                f"- Descuentos: {json.dumps(DISCOUNTS, ensure_ascii=False)}.\n"
+                f"- Último producto recomendado: {active_conversations[user_phone].get('last_product', {}).get('nombre', 'ninguno')}.\n"
+                f"Responde en español, amigable, profesional y en máximo 300 caracteres a: '{user_input}'.\n"
+                f"- No respondas a 'muéstrame ofertas', 'ver laptops', 'qué impresoras tienes' o similares con recomendaciones; esas consultas se manejan directamente.\n"
                 f"- Si pide una recomendación (ej. 'qué laptop me recomiendas'), sugiere un producto adecuado de la categoría correspondiente (ej. 'Laptops y Accesorios' para laptops).\n"
                 f"- Usa el nombre exacto del producto según el JSON proporcionado.\n"
                 f"- Si no hay info, di: 'Lo siento, no tengo esa info. 😅 ¿Otra cosa?'\n"
@@ -648,117 +916,23 @@ def handle_user_input(user_input, user_phone):
                 messages=[{"role": "user", "content": prompt}],
                 max_tokens=100
             )
-            message = response.choices[0].message.content
-
-            # Actualizar last_product con coincidencia específica
-            found_product = find_product_in_response(message, PRODUCTS, user_input)
-            active_conversations[user_phone]["last_product"] = found_product
-
+            message = response.choices[0].message.content if response.choices else "Lo siento, no tengo esa info. 😅 ¿Otra cosa?"
+            found_product = find_product_in_response(message, PRODUCTS, user_input) if message else None
+            if found_product:
+                active_conversations[user_phone]["last_product"] = found_product
+            is_recommendation = re.search(r'\b(recomendar|sugerir|cuál|cual|que|qué|sugiereme|encuentrame)\b', normalized_input)
+            buttons = product_buttons if is_recommendation and found_product else return_menu_button
             if len(message) > 300:
                 message = message[:297] + "..."
-            result = send_whatsapp_message(f"whatsapp:{user_phone}", message, buttons=menu_buttons)
+            result = send_whatsapp_message(f"whatsapp:{user_phone}", message, buttons=buttons)
+            if found_product and is_recommendation:
+                active_conversations[user_phone]["state"] = "awaiting_menu_confirmation"
             return {"response": message, "sent_by_app": True}
         except Exception as e:
             print(f"❌ Error con OpenAI: {str(e)}")
             message = f"Lo siento, {active_conversations[user_phone]['name'] or 'Ko'}, no entendí. 😅 ¿Más detalles o elige una opción?"
-            result = send_whatsapp_message(f"whatsapp:{user_phone}", message, buttons=menu_buttons)
+            result = send_whatsapp_message(f"whatsapp:{user_phone}", message, list_menu=menu_list)
             return {"response": message, "sent_by_app": True}
-
-    if active_conversations[user_phone]["state"] == "awaiting_category":
-        if re.search(r'\b(regresar|volver)\s*(al)?\s*(menu|menú)\b', normalized_input) or user_input == "return_menu" or user_input.lower() == "menu":
-            active_conversations[user_phone]["state"] = "awaiting_query"
-            message = "¡Perfecto! 😊 ¿En qué te ayudo ahora?"
-            result = send_whatsapp_message(f"whatsapp:{user_phone}", message, buttons=menu_buttons)
-            return {"response": message, "sent_by_app": True}
-
-        # Manejar selección de categoría desde el menú interactivo
-        selected_category = None
-        category_short_names = {
-            "Case y Accesorios": "Case y Accesorios",
-            "Cámaras Web & Vídeo Vigilancia": "Cámaras Web",
-            "Discos Duros / Discos Sólidos": "Discos Duros",
-            "Impresoras y Accesorios": "Impresoras",
-            "Laptops y Accesorios": "Laptops",
-            "Monitor / TV & Accesorios": "Monitores",
-            "Mouse / Teclado / Pad Mouse / Kit": "Mouse y Teclado",
-            "OFERTAS": "Ofertas",
-            "Tablets y Celulares": "Tablets",
-            "Tarjetas de Vídeos": "Tarjetas de Video"
-        }
-        if user_input.startswith("category_"):
-            category_id = user_input.replace("category_", "").replace("_", " ")
-            # Mapear el nombre corto al nombre completo
-            selected_category = next((full_name for full_name, short_name in category_short_names.items() if normalize_text(short_name) == normalize_text(category_id)), None)
-        else:
-            # Manejar entrada de texto con búsqueda más flexible
-            for full_name, short_name in category_short_names.items():
-                if normalize_text(short_name) in normalized_input or normalized_input in normalize_text(full_name):
-                    selected_category = full_name
-                    break
-
-        if selected_category:
-            products_in_category = [p for p in PRODUCTS if p['categoria'] == selected_category]
-            product_list = "\n".join([f"- {p['nombre']} - {p['precio']}" for p in products_in_category[:5]])
-            message = f"Productos en {selected_category}:\n{product_list}\n¿En qué te ayudo ahora, {active_conversations[user_phone]['name'] or 'Ko'}? 😄"
-            active_conversations[user_phone]["state"] = "awaiting_query"
-            active_conversations[user_phone]["last_category"] = selected_category
-            if products_in_category:
-                active_conversations[user_phone]["last_product"] = products_in_category[0]
-            result = send_whatsapp_message(f"whatsapp:{user_phone}", message, buttons=menu_buttons)
-            return {"response": message, "sent_by_app": True}
-
-        # Consulta a OpenAI para entradas complejas
-        complex_query = (
-            re.search(r'\b(recomendar|sugerir|cuál|que|qué)\b', normalized_input) or
-            len(normalized_input.split()) > 3
-        )
-        if complex_query:
-            try:
-                recent_messages = active_conversations[user_phone]["messages"][-3:]
-                context = "\n".join([f"{msg['sender']}: {msg['message']}" for msg in recent_messages])
-                prompt = (
-                    f"Eres un asistente de HD Company, una tienda de tecnología en Lima, Perú.\n"
-                    f"Contexto de la conversación:\n{context}\n"
-                    f"Usa la siguiente información para responder:\n"
-                    f"- Categorías: {json.dumps(list(set(p['categoria'] for p in PRODUCTS)), ensure_ascii=False)}.\n"
-                    f"- Productos: {json.dumps(PRODUCTS, ensure_ascii=False)}.\n"
-                    f"- Descuentos: {json.dumps(DISCOUNTS, ensure_ascii=False)}.\n"
-                    f"Responde en español, amigable, profesional y en máximo 300 caracteres a: '{user_input}'.\n"
-                    f"- Si pide una recomendación (ej. 'qué laptop me recomiendas'), sugiere un producto adecuado de la categoría correspondiente (ej. 'Laptops y Accesorios' para laptops).\n"
-                    f"- Usa el nombre exacto del producto según el JSON proporcionado.\n"
-                    f"- Si no hay info, di: 'Lo siento, no tengo esa info. 😅 ¿Otra cosa?'\n"
-                    f"- Termina con: '¿En qué te ayudo ahora, {active_conversations[user_phone]['name'] or 'Ko'}? 😄'"
-                )
-                response = client.chat.completions.create(
-                    model="gpt-3.5-turbo",
-                    messages=[{"role": "user", "content": prompt}],
-                    max_tokens=100
-                )
-                message = response.choices[0].message.content
-
-                # Actualizar last_product con coincidencia específica
-                found_product = find_product_in_response(message, PRODUCTS, user_input)
-                active_conversations[user_phone]["last_product"] = found_product
-
-                if len(message) > 300:
-                    message = message[:297] + "..."
-                active_conversations[user_phone]["state"] = "awaiting_query"  # Volver a awaiting_query
-                result = send_whatsapp_message(f"whatsapp:{user_phone}", message, buttons=menu_buttons)
-                return {"response": message, "sent_by_app": True}
-            except Exception as e:
-                print(f"❌ Error con OpenAI: {str(e)}")
-                message = f"Lo siento, {active_conversations[user_phone]['name'] or 'Ko'}, no entendí. 😅 ¿Más detalles o elige una opción?"
-                result = send_whatsapp_message(f"whatsapp:{user_phone}", message, buttons=menu_buttons)
-                return {"response": message, "sent_by_app": True}
-
-        # Si no coincide con ninguna categoría, pedir aclaración
-        message = f"Lo siento, {active_conversations[user_phone]['name'] or 'Ko'}, no entendí la categoría. 😅 Por favor, elige una o escríbelo de nuevo:"
-        list_menu = [
-            {"id": f"category_{normalize_text(category).replace(' ', '_')}", "title": category_short_names[category][:24]}
-            for category in sorted(list(set(p['categoria'] for p in PRODUCTS)))
-        ]
-        result = send_whatsapp_message(f"whatsapp:{user_phone}", message, list_menu=list_menu)
-        return {"response": message, "sent_by_app": True}
 
 if __name__ == "__main__":
     socketio.run(app, host='0.0.0.0', port=5000, allow_unsafe_werkzeug=True)
