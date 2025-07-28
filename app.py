@@ -13,6 +13,9 @@ from openai import OpenAI
 import requests
 from flask import send_from_directory
 
+WHATSAPP_PHONE_NUMBER_ID = os.getenv('WHATSAPP_PHONE_NUMBER_ID')
+WHATSAPP_ACCESS_TOKEN = os.getenv('WHATSAPP_ACCESS_TOKEN')
+
 load_dotenv()
 print(f"📢 BASE_URL cargada: {os.getenv('BASE_URL')}")
 app = Flask(__name__, static_folder='images', static_url_path='/images')
@@ -138,8 +141,25 @@ def send_whatsapp_message(to_phone, message=None, image_url=None, buttons=None, 
         "to": to_phone.replace("whatsapp:", ""),
     }
     if image_url:
-    # Asegurar que el mensaje sea corto y compatible
-        short_message = (message or f"📷 Imagen del producto\nVer aquí: {image_url}")[:160]
+        # Enviar primer mensaje con la imagen incrustada
+        image_payload = {
+            "messaging_product": "whatsapp",
+            "to": to_phone.replace("whatsapp:", ""),  # Usar to_phone en lugar de to
+            "type": "image",
+            "image": {
+                "link": image_url
+            }
+        }
+        print(f"📢 Enviando imagen incrustada: {json.dumps(image_payload, ensure_ascii=False)}")
+        image_response = requests.post(
+            f"https://graph.facebook.com/v20.0/{os.getenv('WHATSAPP_PHONE_NUMBER_ID')}/messages",
+            headers={"Authorization": f"Bearer {os.getenv('WHATSAPP_ACCESS_TOKEN')}"},
+            json=image_payload
+        )
+        print(f"📢 Respuesta de WhatsApp API (imagen): {image_response.status_code} {image_response.text}")
+
+        # Enviar segundo mensaje con texto y botones
+        short_message = (message or "📷 Imagen del producto enviada arriba. ¿En qué te ayudo ahora?")[:160]
         payload["type"] = "interactive"
         payload["interactive"] = {
             "type": "button",
@@ -154,7 +174,7 @@ def send_whatsapp_message(to_phone, message=None, image_url=None, buttons=None, 
                 ]
             }
         }
-        print(f"📢 Payload de imagen enviado: {json.dumps(payload, ensure_ascii=False)}")
+        print(f"📢 Payload de botones enviado: {json.dumps(payload, ensure_ascii=False)}")
     elif list_menu:
         payload["type"] = "interactive"
         payload["interactive"] = {
