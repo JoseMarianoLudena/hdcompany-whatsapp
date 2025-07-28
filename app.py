@@ -520,13 +520,10 @@ def handle_user_input(user_input, user_phone):
                 product = active_conversations[user_phone]["last_product"]
                 image_path = product.get('image_url', '').lstrip('/') if product.get("image_url") else None
                 image_url = f"{BASE_URL}/{image_path}" if image_path else None
-                file_name = image_path.split('/')[-1] if image_path else None
-                full_path = os.path.join(os.path.dirname(__file__), app.config['UPLOAD_FOLDER'], file_name) if file_name else None
                 print(f"📢 Intentando enviar imagen: {image_url}")
-                print(f"📢 Verificando archivo en: {full_path}")
-                if image_url and full_path and os.path.exists(full_path):
+                if image_url:
                     try:
-                        response = requests.head(image_url, timeout=5)
+                        response = requests.head(image_url, timeout=10)
                         if response.status_code == 200:
                             message = f"📷 Imagen de {product['nombre']}\n¿En qué te ayudo ahora, {active_conversations[user_phone]['name'] or 'Ko'}? 😄"
                             result = send_whatsapp_message(f"whatsapp:{user_phone}", message, image_url=image_url, buttons=product_buttons)
@@ -543,7 +540,7 @@ def handle_user_input(user_input, user_phone):
                         result = send_whatsapp_message(f"whatsapp:{user_phone}", message, buttons=product_buttons)
                         return {"response": message, "sent_by_app": True}
                 else:
-                    print(f"❌ Imagen no encontrada o URL inválida: {image_url}, path: {full_path}")
+                    print(f"❌ Imagen no encontrada o URL inválida: {image_url}")
                     message = f"Lo siento, no tengo imagen de {product['nombre']}. 😅 Visita https://mitienda.today/hdcompany para verlo. ¿En qué te ayudo ahora, {active_conversations[user_phone]['name'] or 'Ko'}? 😄"
                     result = send_whatsapp_message(f"whatsapp:{user_phone}", message, buttons=product_buttons)
                     return {"response": message, "sent_by_app": True}
@@ -723,6 +720,7 @@ def handle_user_input(user_input, user_phone):
             return {"response": message, "sent_by_app": True}
 
         info = find_product_by_name_or_position(user_input, PRODUCTS, active_conversations[user_phone].get("last_category"))
+
         if info and re.search(r'\b(imagen|foto|ver.*producto|cómo.*es|puedo.*ver)\b', normalized_input):
             active_conversations[user_phone]["last_product"] = info
             image_path = info.get('image_url', '').lstrip('/') if info.get("image_url") else None
@@ -758,22 +756,36 @@ def handle_user_input(user_input, user_phone):
                 active_conversations[user_phone]["state"] = "awaiting_menu_confirmation"
                 return {"response": message, "sent_by_app": True}
 
+        # Manejar solicitud de imagen
         if re.search(r'\b(imagen|foto|ver.*producto|cómo.*es|puedo.*ver)\b', normalized_input) or user_input == "view_image":
             if active_conversations[user_phone].get("last_product"):
                 product = active_conversations[user_phone]["last_product"]
                 image_path = product.get('image_url', '').lstrip('/') if product.get("image_url") else None
                 image_url = f"{BASE_URL}/{image_path}" if image_path else None
                 print(f"📢 Intentando enviar imagen: {image_url}")
-                file_name = image_path.split('/')[-1] if image_path else None
-                full_path = os.path.join(app.config['UPLOAD_FOLDER'], file_name) if file_name else None
-                print(f"📢 Verificando archivo en: {full_path}")
-                if image_url and full_path and os.path.exists(full_path):
-                    message = f"📷 Imagen de {product['nombre']}\n¿En qué te ayudo ahora, {active_conversations[user_phone]['name'] or 'Ko'}? 😄"
-                    result = send_whatsapp_message(f"whatsapp:{user_phone}", message, image_url=image_url, buttons=product_buttons)
-                    active_conversations[user_phone]["state"] = "awaiting_menu_confirmation"
-                    return {"response": message, "sent_by_app": True}
+                if image_url:
+                    try:
+                        response = requests.head(image_url, timeout=10)
+                        if response.status_code == 200:
+                            message = f"📷 Imagen de {product['nombre']}\n¿En qué te ayudo ahora, {active_conversations[user_phone]['name'] or 'Ko'}? 😄"
+                            result = send_whatsapp_message(f"whatsapp:{user_phone}", message, image_url=image_url, buttons=product_buttons)
+                            print(f"📢 Imagen accesible, resultado de envío: {result}")
+                            active_conversations[user_phone]["state"] = "awaiting_menu_confirmation"
+                            return {"response": message, "sent_by_app": True}
+                        else:
+                            print(f"❌ URL no accesible: {image_url}, código {response.status_code}")
+                            message = f"Lo siento, no puedo mostrar la imagen de {product['nombre']}. 😅 Visita https://mitienda.today/hdcompany para verlo. ¿En qué te ayudo ahora, {active_conversations[user_phone]['name'] or 'Ko'}? 😄"
+                            result = send_whatsapp_message(f"whatsapp:{user_phone}", message, buttons=product_buttons)
+                            active_conversations[user_phone]["state"] = "awaiting_menu_confirmation"
+                            return {"response": message, "sent_by_app": True}
+                    except requests.RequestException as e:
+                        print(f"❌ Error al verificar URL: {image_url}, error: {str(e)}")
+                        message = f"Lo siento, no puedo mostrar la imagen de {product['nombre']}. 😅 Visita https://mitienda.today/hdcompany para verlo. ¿En qué te ayudo ahora, {active_conversations[user_phone]['name'] or 'Ko'}? 😄"
+                        result = send_whatsapp_message(f"whatsapp:{user_phone}", message, buttons=product_buttons)
+                        active_conversations[user_phone]["state"] = "awaiting_menu_confirmation"
+                        return {"response": message, "sent_by_app": True}
                 else:
-                    print(f"❌ Imagen no encontrada o URL inválida: {image_url}, path: {full_path}")
+                    print(f"❌ Imagen no encontrada o URL inválida: {image_url}")
                     message = f"Lo siento, no tengo imagen de {product['nombre']}. 😅 Visita https://mitienda.today/hdcompany para verlo. ¿En qué te ayudo ahora, {active_conversations[user_phone]['name'] or 'Ko'}? 😄"
                     result = send_whatsapp_message(f"whatsapp:{user_phone}", message, buttons=product_buttons)
                     active_conversations[user_phone]["state"] = "awaiting_menu_confirmation"
