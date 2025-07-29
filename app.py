@@ -452,7 +452,6 @@ def find_product_in_response(response_text, products, user_input):
 
     # Buscar el producto en filtered_products
     if response_product_name:
-        # Normalizar el nombre extraído
         normalized_response_product = normalize_text(response_product_name)
         for product in filtered_products:
             normalized_product_name = normalize_text(product['nombre'])
@@ -460,13 +459,16 @@ def find_product_in_response(response_text, products, user_input):
             if normalized_response_product == normalized_product_name:
                 print(f"📢 Producto encontrado (coincidencia exacta): {product['nombre']} en respuesta: {response_text}")
                 return product
-            # Comparar la parte inicial del nombre (antes de coma o especificaciones)
+            # Comparar nombre inicial (hasta la primera coma o más específico para laptops)
             short_product_name = normalize_text(product['nombre'].split(',')[0].strip())
+            if "laptop" in normalized_input:
+                # Para laptops, incluir más detalles del nombre inicial (hasta el modelo)
+                short_product_name = normalize_text(' '.join(product['nombre'].split()[:5]))  # Ej. "Laptop HP ProBook 450 G9"
             if normalized_response_product == short_product_name:
                 print(f"📢 Producto encontrado (coincidencia en nombre inicial): {product['nombre']} en respuesta: {response_text}")
                 return product
-            # Usar difflib para coincidencias cercanas
-            matches = difflib.get_close_matches(normalized_response_product, [normalized_product_name, short_product_name], n=1, cutoff=0.4)
+            # Usar difflib para coincidencias cercanas (menos prioridad)
+            matches = difflib.get_close_matches(normalized_response_product, [normalized_product_name, short_product_name], n=1, cutoff=0.6)
             print(f"📢 Coincidencias cercanas para '{response_product_name}': {matches}")
             if matches and (matches[0] == normalized_product_name or matches[0] == short_product_name):
                 print(f"📢 Producto encontrado (coincidencia cercana): {product['nombre']} en respuesta: {response_text}")
