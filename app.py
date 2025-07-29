@@ -619,10 +619,8 @@ def handle_user_input(user_input, user_phone):
             if found_product:
                 active_conversations[user_phone]["last_product"] = found_product
                 active_conversations[user_phone]["state"] = "awaiting_menu_confirmation"
-            is_recommendation = re.search(r'\b(recomendar|sugerir|cuál|cual|que|qué|sugiereme|encuentrame)\b', normalized_input)
             if len(message) > 300:
                 message = message[:297] + "..."
-            # Enviar siempre product_buttons para recomendaciones con producto encontrado
             buttons = product_buttons if found_product else return_menu_button
             result = send_whatsapp_message(f"whatsapp:{user_phone}", message, buttons=buttons)
             return {"response": message, "sent_by_app": True}
@@ -870,7 +868,6 @@ def handle_user_input(user_input, user_phone):
                 active_conversations[user_phone]["state"] = "awaiting_menu_confirmation"
             if len(message) > 300:
                 message = message[:297] + "..."
-            # Enviar siempre product_buttons para recomendaciones con producto encontrado
             buttons = product_buttons if found_product else return_menu_button
             result = send_whatsapp_message(f"whatsapp:{user_phone}", message, buttons=buttons)
             return {"response": message, "sent_by_app": True}
@@ -949,13 +946,11 @@ def handle_user_input(user_input, user_phone):
             found_product = find_product_in_response(message, PRODUCTS, user_input) if message else None
             if found_product:
                 active_conversations[user_phone]["last_product"] = found_product
-            is_recommendation = re.search(r'\b(recomendar|sugerir|cuál|cual|que|qué|sugiereme|encuentrame)\b', normalized_input)
-            buttons = product_buttons if is_recommendation and found_product else return_menu_button
+                active_conversations[user_phone]["state"] = "awaiting_menu_confirmation"
             if len(message) > 300:
                 message = message[:297] + "..."
+            buttons = product_buttons if found_product else return_menu_button
             result = send_whatsapp_message(f"whatsapp:{user_phone}", message, buttons=buttons)
-            if found_product and is_recommendation:
-                active_conversations[user_phone]["state"] = "awaiting_menu_confirmation"
             return {"response": message, "sent_by_app": True}
         except Exception as e:
             print(f"❌ Error con OpenAI: {str(e)}")
