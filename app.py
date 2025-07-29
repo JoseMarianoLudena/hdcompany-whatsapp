@@ -23,10 +23,17 @@ app.config['UPLOAD_FOLDER'] = 'images'
 @app.route('/images/<path:filename>')
 def serve_image(filename):
     full_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-    print(f"📢 Solicitud de imagen: {full_path}")
+    print(f"📢 Solicitud de imagen: {full_path}, User-Agent: {request.headers.get('User-Agent')}")
     if os.path.exists(full_path):
-        print(f"📢 Sirviendo imagen: {full_path}, tamaño: {os.path.getsize(full_path)} bytes")
-        return send_from_directory(app.config['UPLOAD_FOLDER'], filename, mimetype='image/png')
+        file_size = os.path.getsize(full_path)
+        print(f"📢 Sirviendo imagen: {full_path}, tamaño: {file_size} bytes")
+        try:
+            response = send_from_directory(app.config['UPLOAD_FOLDER'], filename, mimetype='image/png')
+            print(f"📢 Imagen enviada con éxito: {full_path}")
+            return response
+        except Exception as e:
+            print(f"❌ Error al servir imagen: {str(e)}")
+            return "Error al servir imagen", 500
     else:
         print(f"❌ Imagen no encontrada: {full_path}")
         return "Imagen no encontrada", 404
