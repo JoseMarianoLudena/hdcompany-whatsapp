@@ -141,10 +141,10 @@ def send_whatsapp_message(to_phone, message=None, image_url=None, buttons=None, 
         "to": to_phone.replace("whatsapp:", ""),
     }
     if image_url:
-        # Enviar primer mensaje con la imagen incrustada
+        # Enviar mensaje solo con la imagen incrustada, sin botones
         image_payload = {
             "messaging_product": "whatsapp",
-            "to": to_phone.replace("whatsapp:", ""),  # Usar to_phone en lugar de to
+            "to": to_phone.replace("whatsapp:", ""),
             "type": "image",
             "image": {
                 "link": image_url
@@ -157,24 +157,7 @@ def send_whatsapp_message(to_phone, message=None, image_url=None, buttons=None, 
             json=image_payload
         )
         print(f"📢 Respuesta de WhatsApp API (imagen): {image_response.status_code} {image_response.text}")
-
-        # Enviar segundo mensaje con texto y botones
-        short_message = (message or "📷 Imagen del producto enviada arriba. ¿En qué te ayudo ahora?")[:160]
-        payload["type"] = "interactive"
-        payload["interactive"] = {
-            "type": "button",
-            "body": {"text": short_message},
-            "action": {
-                "buttons": [
-                    {"type": "reply", "reply": {"id": btn["id"], "title": btn["title"]}} for btn in buttons
-                ] if buttons else [
-                    {"type": "reply", "reply": {"id": "view_image", "title": "Ver Imagen"}},
-                    {"type": "reply", "reply": {"id": "view_specs", "title": "Ver Especificaciones"}},
-                    {"type": "reply", "reply": {"id": "return_menu", "title": "Regresar al Menú"}}
-                ]
-            }
-        }
-        print(f"📢 Payload de botones enviado: {json.dumps(payload, ensure_ascii=False)}")
+        return {"status": "success", "message_id": image_response.json().get("messages", [{}])[0].get("id", "")}
     elif list_menu:
         payload["type"] = "interactive"
         payload["interactive"] = {
@@ -539,15 +522,16 @@ def handle_user_input(user_input, user_phone):
                 print(f"📢 Intentando enviar imagen: {image_url}")
                 if image_url:
                     message = f"📷 Imagen de {product['nombre']}\n¿En qué te ayudo ahora, {active_conversations[user_phone]['name'] or 'Ko'}? 😄"
-                    result = send_whatsapp_message(f"whatsapp:{user_phone}", message, image_url=image_url, buttons=product_buttons)
+                    result = send_whatsapp_message(f"whatsapp:{user_phone}", message, image_url=image_url)
                     print(f"📢 Imagen enviada sin verificación, resultado: {result}")
+                    active_conversations[user_phone]["state"] = "awaiting_menu_confirmation"
                     return {"response": message, "sent_by_app": True}
                 else:
                     print(f"❌ Imagen no encontrada o URL inválida: {image_url}")
                     message = f"Lo siento, no tengo imagen de {product['nombre']}. 😅 Visita https://mitienda.today/hdcompany para verlo. ¿En qué te ayudo ahora, {active_conversations[user_phone]['name'] or 'Ko'}? 😄"
                     result = send_whatsapp_message(f"whatsapp:{user_phone}", message, buttons=product_buttons)
+                    active_conversations[user_phone]["state"] = "awaiting_menu_confirmation"
                     return {"response": message, "sent_by_app": True}
-            return {"response": "😔 No hay un producto reciente seleccionado. Escribe el nombre de un producto o pide una recomendación.", "sent_by_app": True}
         # Manejar "view_specs"
         if any(keyword in normalized_input for keyword in more_info_keywords) or user_input == "view_specs":
             if active_conversations[user_phone].get("last_product"):
@@ -734,7 +718,7 @@ def handle_user_input(user_input, user_phone):
             print(f"📢 Verificando archivo en: {full_path}")
             if image_url and full_path and os.path.exists(full_path):
                 message = f"📷 Imagen de {info['nombre']}\n¿En qué te ayudo ahora, {active_conversations[user_phone]['name'] or 'Ko'}? 😄"
-                result = send_whatsapp_message(f"whatsapp:{user_phone}", message, image_url=image_url, buttons=product_buttons)
+                result = send_whatsapp_message(f"whatsapp:{user_phone}", message, image_url=image_url)
                 active_conversations[user_phone]["state"] = "awaiting_menu_confirmation"
                 return {"response": message, "sent_by_app": True}
             else:
@@ -768,7 +752,7 @@ def handle_user_input(user_input, user_phone):
                 print(f"📢 Intentando enviar imagen: {image_url}")
                 if image_url:
                     message = f"📷 Imagen de {product['nombre']}\n¿En qué te ayudo ahora, {active_conversations[user_phone]['name'] or 'Ko'}? 😄"
-                    result = send_whatsapp_message(f"whatsapp:{user_phone}", message, image_url=image_url, buttons=product_buttons)
+                    result = send_whatsapp_message(f"whatsapp:{user_phone}", message, image_url=image_url)
                     print(f"📢 Imagen enviada sin verificación, resultado: {result}")
                     active_conversations[user_phone]["state"] = "awaiting_menu_confirmation"
                     return {"response": message, "sent_by_app": True}
