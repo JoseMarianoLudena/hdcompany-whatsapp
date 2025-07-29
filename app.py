@@ -22,7 +22,14 @@ app = Flask(__name__, static_folder='images', static_url_path='/images')
 app.config['UPLOAD_FOLDER'] = 'images'
 @app.route('/images/<path:filename>')
 def serve_image(filename):
-    return send_from_directory(app.config['UPLOAD_FOLDER'], filename, mimetype='image/png')
+    full_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+    print(f"📢 Solicitud de imagen: {full_path}")
+    if os.path.exists(full_path):
+        print(f"📢 Sirviendo imagen: {full_path}, tamaño: {os.path.getsize(full_path)} bytes")
+        return send_from_directory(app.config['UPLOAD_FOLDER'], filename, mimetype='image/png')
+    else:
+        print(f"❌ Imagen no encontrada: {full_path}")
+        return "Imagen no encontrada", 404
 
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'supersecretkey')
 socketio = SocketIO(app)
@@ -141,11 +148,12 @@ def send_whatsapp_message(to_phone, message=None, image_url=None, buttons=None, 
         "to": to_phone.replace("whatsapp:", ""),
     }
     if image_url:
-    # Verificar si el archivo existe en el servidor
+        # Verificar si el archivo existe en el servidor
         file_name = image_url.split('/')[-1]
         full_path = os.path.join(app.config['UPLOAD_FOLDER'], file_name)
         print(f"📢 Verificando archivo en: {full_path}")
         if os.path.exists(full_path):
+            # Enviar solo la imagen
             image_payload = {
                 "messaging_product": "whatsapp",
                 "to": to_phone.replace("whatsapp:", ""),
@@ -161,7 +169,28 @@ def send_whatsapp_message(to_phone, message=None, image_url=None, buttons=None, 
                 json=image_payload
             )
             print(f"📢 Respuesta de WhatsApp API (imagen): {image_response.status_code} {image_response.text}")
-            return {"status": "success", "message_id": image_response.json().get("messages", [{}])[0].get("id", "")}
+            if image_response.status_code == 200:
+                # Enviar mensaje de texto por separado
+                text_payload = {
+                    "messaging_product": "whatsapp",
+                    "to": to_phone.replace("whatsapp:", ""),
+                    "type": "text",
+                    "text": {"body": message}
+                }
+                text_response = requests.post(
+                    f"https://graph.facebook.com/v20.0/{os.getenv('WHATSAPP_PHONE_NUMBER_ID')}/messages",
+                    headers={"Authorization": f"Bearer {os.getenv('WHATSAPP_ACCESS_TOKEN')}"},
+                    json=text_payload
+                )
+                print(f"📢 Respuesta de WhatsApp API (texto): {text_response.status_code} {text_response.text}")
+                return {"status": "success", "message_id": image_response.json().get("messages", [{}])[0].get("id", "")}
+            else:
+                print(f"❌ Error al enviar imagen: {image_response.text}")
+                payload["type"] = "text"
+                payload["text"] = {"body": f"Lo siento, no pude enviar la imagen. 😅 Visita https://mitienda.today/hdcompany para verlo."}
+                response = requests.post(endpoint, json=payload, headers=headers)
+                print(f"📢 Respuesta de WhatsApp API: {response.status_code} {response.text}")
+                return {"status": "error", "error": "No se pudo enviar la imagen"}
         else:
             print(f"❌ Archivo no encontrado en el servidor: {full_path}")
             payload["type"] = "text"
