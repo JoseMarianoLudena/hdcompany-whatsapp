@@ -22,7 +22,7 @@ app = Flask(__name__, static_folder='images', static_url_path='/images')
 app.config['UPLOAD_FOLDER'] = 'images'
 @app.route('/images/<path:filename>')
 def serve_image(filename):
-    return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
+    return send_from_directory(app.config['UPLOAD_FOLDER'], filename, mimetype='image/png')
 
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'supersecretkey')
 socketio = SocketIO(app)
@@ -141,23 +141,34 @@ def send_whatsapp_message(to_phone, message=None, image_url=None, buttons=None, 
         "to": to_phone.replace("whatsapp:", ""),
     }
     if image_url:
-        # Enviar mensaje solo con la imagen incrustada, sin botones
-        image_payload = {
-            "messaging_product": "whatsapp",
-            "to": to_phone.replace("whatsapp:", ""),
-            "type": "image",
-            "image": {
-                "link": image_url
+    # Verificar si el archivo existe en el servidor
+        file_name = image_url.split('/')[-1]
+        full_path = os.path.join(app.config['UPLOAD_FOLDER'], file_name)
+        print(f"📢 Verificando archivo en: {full_path}")
+        if os.path.exists(full_path):
+            image_payload = {
+                "messaging_product": "whatsapp",
+                "to": to_phone.replace("whatsapp:", ""),
+                "type": "image",
+                "image": {
+                    "link": image_url
+                }
             }
-        }
-        print(f"📢 Enviando imagen incrustada: {json.dumps(image_payload, ensure_ascii=False)}")
-        image_response = requests.post(
-            f"https://graph.facebook.com/v20.0/{os.getenv('WHATSAPP_PHONE_NUMBER_ID')}/messages",
-            headers={"Authorization": f"Bearer {os.getenv('WHATSAPP_ACCESS_TOKEN')}"},
-            json=image_payload
-        )
-        print(f"📢 Respuesta de WhatsApp API (imagen): {image_response.status_code} {image_response.text}")
-        return {"status": "success", "message_id": image_response.json().get("messages", [{}])[0].get("id", "")}
+            print(f"📢 Enviando imagen incrustada: {json.dumps(image_payload, ensure_ascii=False)}")
+            image_response = requests.post(
+                f"https://graph.facebook.com/v20.0/{os.getenv('WHATSAPP_PHONE_NUMBER_ID')}/messages",
+                headers={"Authorization": f"Bearer {os.getenv('WHATSAPP_ACCESS_TOKEN')}"},
+                json=image_payload
+            )
+            print(f"📢 Respuesta de WhatsApp API (imagen): {image_response.status_code} {image_response.text}")
+            return {"status": "success", "message_id": image_response.json().get("messages", [{}])[0].get("id", "")}
+        else:
+            print(f"❌ Archivo no encontrado en el servidor: {full_path}")
+            payload["type"] = "text"
+            payload["text"] = {"body": f"Lo siento, la imagen no está disponible. 😅 Visita https://mitienda.today/hdcompany para verlo."}
+            response = requests.post(endpoint, json=payload, headers=headers)
+            print(f"📢 Respuesta de WhatsApp API: {response.status_code} {response.text}")
+            return {"status": "error", "error": "Archivo no encontrado"}
     elif list_menu:
         payload["type"] = "interactive"
         payload["interactive"] = {
