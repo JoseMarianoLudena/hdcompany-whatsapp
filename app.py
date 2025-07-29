@@ -12,6 +12,7 @@ import unicodedata
 from openai import OpenAI
 import requests
 from flask import send_from_directory
+import difflib
 
 WHATSAPP_PHONE_NUMBER_ID = os.getenv('WHATSAPP_PHONE_NUMBER_ID')
 WHATSAPP_ACCESS_TOKEN = os.getenv('WHATSAPP_ACCESS_TOKEN')
@@ -396,29 +397,34 @@ def find_product_in_response(response_text, products, user_input):
             filtered_products = [p for p in products if p['categoria'] == target_category]
         print(f"📢 Filtrando productos por categoría: {target_category}")
 
-    # Buscar el producto más relevante
-    best_match = None
-    best_score = 0
-    for product in filtered_products:
-        normalized_product_name = normalize_text(product['nombre'])
-        product_words = normalized_product_name.split()
-        score = 0
-        for word in product_words:
-            if len(word) > 3 and word in normalized_response:
-                score += 1
-        if normalized_product_name in normalized_response:
-            score += len(product_words) * 2
-        if "gamer" in normalized_input and product['categoria'] == "Laptops y Accesorios":
-            if any(spec in normalized_product_name for spec in ["ryzen 7", "core i7", "16gb", "1tb"]):
-                score += 5
-        print(f"📢 Evaluando producto: {product['nombre']} (score: {score})")
-        if score > best_score:
-            best_match = product
-            best_score = score
+    # Usar difflib para encontrar coincidencias cercanas
+    product_names = [p['nombre'] for p in filtered_products]
+    response_product_name = None
+    # Extraer el nombre del producto entre corchetes, si existe
+    match = re.search(r'\[(.*?)\]', normalized_response)
+    if match:
+        response_product_name = match.group(1)
+    else:
+        # Buscar coincidencias cercanas en el texto completo
+        words = normalized_response.split()
+        potential_names = [' '.join(words[i:i+5]) for i in range(len(words)-4)]
+        for name in potential_names:
+            matches = difflib.get_close_matches(normalize_text(name), [normalize_text(p['nombre']) for p in filtered_products], n=1, cutoff=0.6)
+            if matches:
+                response_product_name = matches[0]
+                break
 
-    if best_match:
-        print(f"📢 Producto encontrado: {best_match['nombre']} en respuesta: {response_text}")
-        return best_match
+    if response_product_name:
+        for product in filtered_products:
+            if normalize_text(product['nombre']) == normalize_text(response_product_name):
+                print(f"📢 Producto encontrado: {product['nombre']} en respuesta: {response_text}")
+                return product
+            # Verificar coincidencias cercanas
+            matches = difflib.get_close_matches(normalize_text(response_product_name), [normalize_text(product['nombre'])], n=1, cutoff=0.7)
+            if matches and normalize_text(product['nombre']) == matches[0]:
+                print(f"📢 Producto encontrado (coincidencia cercana): {product['nombre']} en respuesta: {response_text}")
+                return product
+
     print(f"📢 No se encontró producto en respuesta: {response_text}")
     return None
 
@@ -621,7 +627,7 @@ def handle_user_input(user_input, user_phone):
                 active_conversations[user_phone]["state"] = "awaiting_menu_confirmation"
             if len(message) > 300:
                 message = message[:297] + "..."
-            buttons = product_buttons if found_product else return_menu_button
+            buttons = product_buttons if found_product or re.search(r'\b(recomendar|sugerir|cuál|cual|que|qué|sugiereme|encuentrame)\b', normalized_input) else return_menu_button            
             result = send_whatsapp_message(f"whatsapp:{user_phone}", message, buttons=buttons)
             return {"response": message, "sent_by_app": True}
         except Exception as e:
@@ -868,7 +874,7 @@ def handle_user_input(user_input, user_phone):
                 active_conversations[user_phone]["state"] = "awaiting_menu_confirmation"
             if len(message) > 300:
                 message = message[:297] + "..."
-            buttons = product_buttons if found_product else return_menu_button
+            buttons = product_buttons if found_product or re.search(r'\b(recomendar|sugerir|cuál|cual|que|qué|sugiereme|encuentrame)\b', normalized_input) else return_menu_button
             result = send_whatsapp_message(f"whatsapp:{user_phone}", message, buttons=buttons)
             return {"response": message, "sent_by_app": True}
         except Exception as e:
