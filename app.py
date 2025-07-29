@@ -450,29 +450,44 @@ def find_product_in_response(response_text, products, user_input):
         response_product_name = match.group(1)
         print(f"📢 Nombre de producto extraído entre corchetes: {response_product_name}")
 
-    # Si no hay corchetes, buscar coincidencias cercanas
-    if not response_product_name:
-        words = normalized_response.split()
-        potential_names = [' '.join(words[i:i+5]) for i in range(len(words)-4)]
-        for name in potential_names:
-            matches = difflib.get_close_matches(normalize_text(name), [normalize_text(p['nombre']) for p in filtered_products], n=1, cutoff=0.5)
-            print(f"📢 Coincidencias para '{name}': {matches}")
-            if matches:
-                response_product_name = matches[0]
-                break
-
     # Buscar el producto en filtered_products
     if response_product_name:
+        # Normalizar el nombre extraído
+        normalized_response_product = normalize_text(response_product_name)
         for product in filtered_products:
             normalized_product_name = normalize_text(product['nombre'])
-            if normalized_product_name == normalize_text(response_product_name):
+            # Comparar nombre completo
+            if normalized_response_product == normalized_product_name:
                 print(f"📢 Producto encontrado (coincidencia exacta): {product['nombre']} en respuesta: {response_text}")
                 return product
-            matches = difflib.get_close_matches(normalize_text(response_product_name), [normalized_product_name], n=1, cutoff=0.6)
+            # Comparar la parte inicial del nombre (antes de coma o especificaciones)
+            short_product_name = normalize_text(product['nombre'].split(',')[0].strip())
+            if normalized_response_product == short_product_name:
+                print(f"📢 Producto encontrado (coincidencia en nombre inicial): {product['nombre']} en respuesta: {response_text}")
+                return product
+            # Usar difflib para coincidencias cercanas
+            matches = difflib.get_close_matches(normalized_response_product, [normalized_product_name, short_product_name], n=1, cutoff=0.4)
             print(f"📢 Coincidencias cercanas para '{response_product_name}': {matches}")
-            if matches and normalized_product_name == matches[0]:
+            if matches and (matches[0] == normalized_product_name or matches[0] == short_product_name):
                 print(f"📢 Producto encontrado (coincidencia cercana): {product['nombre']} en respuesta: {response_text}")
                 return product
+
+    # Respaldo: si no se encuentra, crear un producto temporal
+    if response_product_name and target_category:
+        # Buscar una imagen de la misma categoría como respaldo
+        image_url = None
+        for product in filtered_products:
+            if product.get('image_url'):
+                image_url = product['image_url'].lstrip('/')
+                break
+        print(f"📢 Producto no encontrado en JSON, creando respaldo: {response_product_name}")
+        return {
+            "nombre": response_product_name,
+            "categoria": target_category,
+            "image_url": image_url if image_url else None,
+            "descripcion": "Especificaciones no disponibles en el catálogo. Consulta en https://mitienda.today/hdcompany.",
+            "precio": re.search(r'PEN \d+\.\d{2}', response_text).group(0) if re.search(r'PEN \d+\.\d{2}', response_text) else "PEN 0.00"
+        }
 
     print(f"📢 No se encontró producto en respuesta: {response_text}")
     return None
