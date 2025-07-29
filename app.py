@@ -406,7 +406,7 @@ def normalize_text(text):
 
 # Encontrar producto en la respuesta de OpenAI
 def find_product_in_response(response_text, products, user_input):
-    """Busca un producto en la respuesta de OpenAI usando coincidencias exactas o cercanas."""
+    """Busca un producto en la respuesta de OpenAI usando coincidencias exactas, prefijos o cercanas."""
     normalized_response = normalize_text(response_text)
     normalized_input = normalize_text(user_input)
 
@@ -455,9 +455,9 @@ def find_product_in_response(response_text, products, user_input):
         normalized_response_product = normalize_text(response_product_name)
         for product in filtered_products:
             normalized_product_name = normalize_text(product['nombre'])
-            # Comparar nombre completo
-            if normalized_response_product == normalized_product_name:
-                print(f"📢 Producto encontrado (coincidencia exacta): {product['nombre']} en respuesta: {response_text}")
+            # Comparar si el nombre extraído es un prefijo del nombre completo
+            if normalized_response_product in normalized_product_name:
+                print(f"📢 Producto encontrado (prefijo): {product['nombre']} en respuesta: {response_text}")
                 return product
             # Comparar nombre inicial (hasta la primera coma o más específico para laptops)
             short_product_name = normalize_text(product['nombre'].split(',')[0].strip())
@@ -468,8 +468,9 @@ def find_product_in_response(response_text, products, user_input):
                 print(f"📢 Producto encontrado (coincidencia en nombre inicial): {product['nombre']} en respuesta: {response_text}")
                 return product
             # Usar difflib para coincidencias cercanas (menos prioridad)
-            matches = difflib.get_close_matches(normalized_response_product, [normalized_product_name, short_product_name], n=1, cutoff=0.6)
-            print(f"📢 Coincidencias cercanas para '{response_product_name}': {matches}")
+            cutoff = 0.8 if "laptop" in normalized_input else 0.6
+            matches = difflib.get_close_matches(normalized_response_product, [normalized_product_name, short_product_name], n=1, cutoff=cutoff)
+            print(f"📢 Coincidencias cercanas para '{response_product_name}' con cutoff={cutoff}: {matches}")
             if matches and (matches[0] == normalized_product_name or matches[0] == short_product_name):
                 print(f"📢 Producto encontrado (coincidencia cercana): {product['nombre']} en respuesta: {response_text}")
                 return product
