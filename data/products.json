@@ -4,175 +4,215 @@
     "nombre": "Cargador HP 19.5V 3.5A | Punta Aguja",
     "precio": "PEN 45.00",
     "descripcion": "Cargador compatible con laptops HP.",
-    "categoria": "Laptops y Accesorios"
+    "categoria": "Laptops y Accesorios",
+    "image_url": "/images/img4.png"
   },
   {
     "id": 2,
     "nombre": "Cargador HP 18.5V 3.5A | Punta Amarilla",
     "precio": "PEN 45.00",
     "descripcion": "Cargador para modelos HP con punta amarilla.",
-    "categoria": "Laptops y Accesorios"
+    "categoria": "Laptops y Accesorios",
+    "image_url": "/images/img4.png"
   },
   {
     "id": 3,
     "nombre": "Cargador LENOVO 20V 3.25A 65W | Punta USB",
     "precio": "PEN 45.00",
     "descripcion": "Cargador Lenovo con conexión USB.",
-    "categoria": "Laptops y Accesorios"
+    "categoria": "Laptops y Accesorios",
+    "image_url": "/images/img4.png"
   },
   {
     "id": 4,
     "nombre": "Cargador LENOVO 19.5V 3.25A | Punta Marrón",
     "precio": "PEN 45.00",
     "descripcion": "Cargador para laptops Lenovo con punta marrón.",
-    "categoria": "Laptops y Accesorios"
+    "categoria": "Laptops y Accesorios",
+    "image_url": "/images/img4.png"
   },
   {
     "id": 5,
     "nombre": "Cargador HP 19.5V 1.58A | Punta Pequeña",
     "precio": "PEN 45.00",
     "descripcion": "Cargador HP con punta pequeña.",
-    "categoria": "Laptops y Accesorios"
+    "categoria": "Laptops y Accesorios",
+    "image_url": "/images/img4.png"
   },
   {
     "id": 6,
     "nombre": "Cargador SONY 19.5V 2A | Punta Aguja",
     "precio": "PEN 45.00",
     "descripcion": "Cargador Sony con punta de aguja.",
-    "categoria": "Laptops y Accesorios"
+    "categoria": "Laptops y Accesorios",
+    "image_url": "/images/img4.png"
+
   },
   {
     "id": 7,
     "nombre": "Cargador ACER 19V 3.42A | Punta Pequeña",
     "precio": "PEN 45.00",
     "descripcion": "Cargador Acer con punta pequeña.",
-    "categoria": "Laptops y Accesorios"
+    "categoria": "Laptops y Accesorios",
+    "image_url": "/images/img4.png"
+
   },
   {
     "id": 8,
     "nombre": "Cargador DELL 19.5V 3.34A | Punta Aguja",
     "precio": "PEN 45.00",
     "descripcion": "Cargador Dell con punta de aguja.",
-    "categoria": "Laptops y Accesorios"
+    "categoria": "Laptops y Accesorios",
+    "image_url": "/images/img4.png"
+
   },
   {
     "id": 9,
     "nombre": "Cargador LENOVO 20V 3.25A 65W | Punta Pequeña",
     "precio": "PEN 45.00",
     "descripcion": "Cargador Lenovo con punta pequeña.",
-    "categoria": "Laptops y Accesorios"
+    "categoria": "Laptops y Accesorios",
+    "image_url": "/images/img4.png"
+
   },
   {
     "id": 10,
     "nombre": "Cargador ASUS ORIGINAL 19V 3.42A 65W | Punta Pequeña Cuadrado",
     "precio": "PEN 140.00",
     "descripcion": "Cargador original ASUS con punta cuadrada.",
-    "categoria": "Laptops y Accesorios"
+    "categoria": "Laptops y Accesorios",
+    "image_url": "/images/img4.png"
+
   },
   {
     "id": 11,
     "nombre": "Cargador TOSHIBA 19V 3.42A",
     "precio": "PEN 45.00",
     "descripcion": "Cargador Toshiba estándar.",
-    "categoria": "Laptops y Accesorios"
+    "categoria": "Laptops y Accesorios",
+    "image_url": "/images/img4.png"
+    
   },
   {
     "id": 12,
     "nombre": "Cargador SAMSUNG 14V 2.14A | Para Monitor",
     "precio": "PEN 45.00",
     "descripcion": "Cargador Samsung para monitores.",
-    "categoria": "Laptops y Accesorios"
+    "categoria": "Laptops y Accesorios",
+    "image_url": "/images/img4.png"
+
   },
   {
     "id": 13,
     "nombre": "Cargador DELL 19.5V 3.34A | Punta ENVY",
     "precio": "PEN 45.00",
     "descripcion": "Cargador Dell con punta ENVY.",
-    "categoria": "Laptops y Accesorios"
+    "categoria": "Laptops y Accesorios",
+    "image_url": "/images/img4.png"
+
   },
   {
     "id": 14,
     "nombre": "Adaptador USB de AUDIO 7.1 de 4 Salidas",
     "precio": "PEN 20.00",
     "descripcion": "Adaptador USB para audio 7.1.",
-    "categoria": "Laptops y Accesorios"
+    "categoria": "Laptops y Accesorios",
+    "image_url": "/images/img4.png"
+
   },
   {
     "id": 15,
     "nombre": "Batería para TOSHIBA 5024-8-3S2P",
     "precio": "PEN 89.99",
     "descripcion": "Batería compatible con modelos Toshiba.",
-    "categoria": "Laptops y Accesorios"
+    "categoria": "Laptops y Accesorios",
+    "image_url": "/images/img4.png"
+
   },
   {
     "id": 16,
     "nombre": "Batería para HP hdv4-6",
     "precio": "PEN 110.00",
     "descripcion": "Batería para laptops HP modelo hdv4-6.",
-    "categoria": "Laptops y Accesorios"
+    "categoria": "Laptops y Accesorios",
+    "image_url": "/images/img4.png"
+
   },
   {
     "id": 17,
     "nombre": "Ventilador para Laptop AIRBOOM Cruiser AB021",
     "precio": "PEN 30.00",
     "descripcion": "Ventilador portátil para mantener la laptop fresca.",
-    "categoria": "Laptops y Accesorios"
+    "categoria": "Laptops y Accesorios",
+    "image_url": "/images/img4.png"
+
   },
   {
     "id": 18,
     "nombre": "Ventilador para Laptop AIRBOOM Polaris AB003",
     "precio": "PEN 65.00",
     "descripcion": "Ventilador eficiente para laptops AIRBOOM.",
-    "categoria": "Laptops y Accesorios"
+    "categoria": "Laptops y Accesorios",
+    "image_url": "/images/img4.png"
+
   },
   {
     "id": 19,
     "nombre": "Ventilador para Laptop AIRBOOM Vortex AB008 | Nivel Ajustable",
     "precio": "PEN 75.00",
     "descripcion": "Ventilador con nivel de ajuste para mayor comodidad.",
-    "categoria": "Laptops y Accesorios"
+    "categoria": "Laptops y Accesorios",
+    "image_url": "/images/img4.png"
+
   },
   {
     "id": 20,
     "nombre": "Ventilador para Laptop TARGUS AWE61US",
     "precio": "PEN 60.00",
     "descripcion": "Ventilador de alta calidad para laptops TARGUS.",
-    "categoria": "Laptops y Accesorios"
+    "categoria": "Laptops y Accesorios",
+    "image_url": "/images/img4.png"
+
   },
   {
     "id": 21,
     "nombre": "Cooler para Laptop TEROS TE7020N | Hasta 15.6\" Reclinable",
     "precio": "PEN 45.00",
     "descripcion": "Cooler reclinable para laptops de hasta 15.6\".",
-    "categoria": "Laptops y Accesorios"
+    "categoria": "Laptops y Accesorios",
+    "image_url": "/images/img4.png"
   },
   {
     "id": 22,
     "nombre": "Ventilador para Laptop XTECH XTA150",
     "precio": "PEN 45.00",
     "descripcion": "Ventilador compacto para laptops XTECH.",
-    "categoria": "Laptops y Accesorios"
+    "categoria": "Laptops y Accesorios",
+    "image_url": "/images/img4.png"
   },
   {
     "id": 23,
     "nombre": "Cooler para Laptop CYBERCOOL HA-69",
     "precio": "PEN 50.00",
     "descripcion": "Cooler eficiente para mantener la temperatura de la laptop.",
-    "categoria": "Laptops y Accesorios"
+    "categoria": "Laptops y Accesorios",
+    "image_url": "/images/img4.png"
   },
   {
     "id": 24,
     "nombre": "Cooler AIRBOOM para Case - AB122 | 12CM",
     "precio": "PEN 30.00",
     "descripcion": "Cooler de 12CM para mejorar la ventilación del case.",
-    "categoria": "Laptops y Accesorios"
+    "categoria": "Laptops y Accesorios",
+    "image_url": "/images/img4.png"
   },
   {
     "id": 25,
     "nombre": "Cooler AIRBOOM ARTIC LED - AB005H Soporte Celular",
     "precio": "PEN 50.00",
     "descripcion": "Cooler con LED y soporte para celular.",
-    "categoria": "Laptops y Accesorios"
+    "categoria": "Laptops y Accesorios",
+    "image_url": "/images/img4.png"
   },
   {
     "id": 26,
@@ -180,7 +220,7 @@
     "precio": "PEN 2799.00",
     "descripcion": "Laptop Lenovo con procesador Ryzen 7 y pantalla FHD.",
     "categoria": "Laptops y Accesorios",
-    "image_url": "/images/img1.png"
+    "image_url": "/images/img4.png"
   },
   {
     "id": 27,
@@ -195,7 +235,7 @@
     "precio": "PEN 1800.00",
     "descripcion": "Laptop HP con procesador I5 y pantalla de 15.6\".",
     "categoria": "Laptops y Accesorios",
-    "image_url": "/images/img2.png"
+    "image_url": "/images/img4.png"
   },
   {
     "id": 29,
@@ -203,7 +243,7 @@
     "precio": "PEN 1900.00",
     "descripcion": "Laptop Lenovo con procesador I5 y RAM DDR5.",
     "categoria": "Laptops y Accesorios",
-    "image_url": "/images/img3.png"
+    "image_url": "/images/img4.png"
   },
   {
     "id": 30,
@@ -870,7 +910,7 @@
     "precio": "PEN 119.99",
     "descripcion": "Teclado inalámbrico Logitech K400 Plus con touchpad integrado.",
     "categoria": "Mouse / Teclado / Pad Mouse / Kit",
-    "image_url": "/images/img5.png"
+    "image_url": "/images/img4.png"
   },
   {
     "id": 125,
@@ -878,7 +918,7 @@
     "precio": "PEN 58.00",
     "descripcion": "Kit alámbrico de teclado y mouse Logitech MK120.",
     "categoria": "Mouse / Teclado / Pad Mouse / Kit",
-    "image_url": "/images/img6.png"
+    "image_url": "/images/img4.png"
   },
   {
     "id": 126,
@@ -886,7 +926,7 @@
     "precio": "PEN 50.00",
     "descripcion": "Teclado gamer ENKORE Epsilon con retroiluminación.",
     "categoria": "Mouse / Teclado / Pad Mouse / Kit",
-    "image_url": "/images/img7.png"
+    "image_url": "/images/img4.png"
   },
   {
     "id": 127,
@@ -894,161 +934,197 @@
     "precio": "PEN 40.00",
     "descripcion": "Combo de mouse gamer y mouse pad HALION 4D Cobra.",
     "categoria": "Mouse / Teclado / Pad Mouse / Kit",
-    "image_url": "/images/img8.png"
+    "image_url": "/images/img4.png"
   },
   {
     "id": 128,
     "nombre": "Teclado Inalambrico CYBERTEL Smart TV NAVIGATOR - CYB K237",
     "precio": "PEN 72.00",
     "descripcion": "Teclado inalámbrico CYBERTEL para Smart TV.",
-    "categoria": "Mouse / Teclado / Pad Mouse / Kit"
+    "categoria": "Mouse / Teclado / Pad Mouse / Kit",
+    "image_url": "/images/img4.png"
   },
   {
     "id": 129,
     "nombre": "Mouse MICROSOFT Inalambrico SOURIS 1850 Negro",
     "precio": "PEN 60.00",
     "descripcion": "Mouse inalámbrico Microsoft SOURIS 1850 en color negro.",
-    "categoria": "Mouse / Teclado / Pad Mouse / Kit"
+    "categoria": "Mouse / Teclado / Pad Mouse / Kit",
+    "image_url": "/images/img4.png"
   },
   {
     "id": 130,
     "nombre": "Combo Alámbrico TEROS TE-4030B | Teclado, Mouse, Parlante",
     "precio": "PEN 60.00",
     "descripcion": "Combo alámbrico TEROS que incluye teclado, mouse y parlante.",
-    "categoria": "Mouse / Teclado / Pad Mouse / Kit"
+    "categoria": "Mouse / Teclado / Pad Mouse / Kit",
+    "image_url": "/images/img4.png"
   },
   {
     "id": 131,
     "nombre": "Mouse AVATEC Bluetooth CMS-6228BS | DPI 1600",
     "precio": "PEN 59.99",
     "descripcion": "Mouse Bluetooth AVATEC con DPI de 1600.",
-    "categoria": "Mouse / Teclado / Pad Mouse / Kit"
+    "categoria": "Mouse / Teclado / Pad Mouse / Kit",
+    "image_url": "/images/img4.png"
   },
   {
     "id": 132,
     "nombre": "Mouse ENKORE Pivot EKM105 USB",
     "precio": "PEN 15.00",
     "descripcion": "Mouse ENKORE Pivot con conexión USB.",
-    "categoria": "Mouse / Teclado / Pad Mouse / Kit"
+    "categoria": "Mouse / Teclado / Pad Mouse / Kit",
+    "image_url": "/images/img4.png"
   },
   {
     "id": 133,
     "nombre": "Teclado Alámbrico MICRONICS Milano MIC K704X | PLOMO",
     "precio": "PEN 48.00",
     "descripcion": "Teclado alámbrico Micronics Milano en color plomo.",
-    "categoria": "Mouse / Teclado / Pad Mouse / Kit"
+    "categoria": "Mouse / Teclado / Pad Mouse / Kit",
+    "image_url": "/images/img4.png"
   },
   {
     "id": 134,
     "nombre": "Kit Alámbrico Teclado y Mouse GENIUS KM-160 BLACK",
     "precio": "PEN 50.00",
     "descripcion": "Kit alámbrico de teclado y mouse Genius KM-160 en color negro.",
-    "categoria": "Mouse / Teclado / Pad Mouse / Kit"
+    "categoria": "Mouse / Teclado / Pad Mouse / Kit",
+    "image_url": "/images/img4.png"
   },
   {
     "id": 135,
     "nombre": "Mouse GENIUS Micro Traveler 9000R Inalambrico Verde (Batería Recargable)",
     "precio": "PEN 69.00",
     "descripcion": "Mouse inalámbrico Genius Micro Traveler 9000R en color verde.",
-    "categoria": "Mouse / Teclado / Pad Mouse / Kit"
+    "categoria": "Mouse / Teclado / Pad Mouse / Kit",
+    "image_url": "/images/img4.png"
+
   },
   {
     "id": 136,
     "nombre": "Kit Teclado y Mouse CYBERTEL Twister CYB T1801 USB",
     "precio": "PEN 80.00",
     "descripcion": "Kit de teclado y mouse CYBERTEL Twister con conexión USB.",
-    "categoria": "Mouse / Teclado / Pad Mouse / Kit"
+    "categoria": "Mouse / Teclado / Pad Mouse / Kit",
+    "image_url": "/images/img4.png"
+
   },
   {
     "id": 137,
     "nombre": "Teclado Alámbrico CYBERTEL Ebony CYB K105 BLACK",
     "precio": "PEN 30.00",
     "descripcion": "Teclado alámbrico CYBERTEL Ebony en color negro.",
-    "categoria": "Mouse / Teclado / Pad Mouse / Kit"
+    "categoria": "Mouse / Teclado / Pad Mouse / Kit",
+    "image_url": "/images/img4.png"
+
   },
   {
     "id": 138,
     "nombre": "Mouse CYBERTEL Storm X CYB M103X BLUE | DPI 1000",
     "precio": "PEN 15.00",
     "descripcion": "Mouse CYBERTEL Storm X en color azul con DPI de 1000.",
-    "categoria": "Mouse / Teclado / Pad Mouse / Kit"
+    "categoria": "Mouse / Teclado / Pad Mouse / Kit",
+    "image_url": "/images/img4.png"
+
   },
   {
     "id": 139,
     "nombre": "Teclado Alámbrico Mecánico Gamer ENKORE Kingdom ENK1001",
     "precio": "PEN 115.00",
     "descripcion": "Teclado alámbrico mecánico gamer ENKORE Kingdom.",
-    "categoria": "Mouse / Teclado / Pad Mouse / Kit"
+    "categoria": "Mouse / Teclado / Pad Mouse / Kit",
+    "image_url": "/images/img4.png"
+
   },
   {
     "id": 140,
     "nombre": "Mouse Gamer + Mouse Pad Cybertel Scorpion CYB TG5003",
     "precio": "PEN 40.00",
     "descripcion": "Combo de mouse gamer y mouse pad Cybertel Scorpion.",
-    "categoria": "OFERTAS"
+    "categoria": "OFERTAS",
+    "image_url": "/images/img4.png"
+
   },
   {
     "id": 141,
     "nombre": "CPU AMD RYZEN",
     "precio": "PEN 3200.00",
     "descripcion": "Procesador AMD Ryzen.",
-    "categoria": "OFERTAS"
+    "categoria": "OFERTAS",
+    "image_url": "/images/img4.png"
+
   },
   {
     "id": 142,
     "nombre": "Mousepad con Muñequera / Diseño",
     "precio": "PEN 15.00",
     "descripcion": "Mousepad con muñequera y diseño.",
-    "categoria": "OFERTAS"
+    "categoria": "OFERTAS",
+    "image_url": "/images/img4.png"
+
   },
   {
     "id": 143,
     "nombre": "Bandeja de Disco p/Laptop SECOND HDD CADDY 12.7 MM",
     "precio": "PEN 30.00",
     "descripcion": "Bandeja para segundo disco duro en laptops, caddy de 12.7 mm.",
-    "categoria": "OFERTAS"
+    "categoria": "OFERTAS",
+    "image_url": "/images/img4.png"
+
   },
   {
     "id": 144,
     "nombre": "Gamepad ENKORE ENG1001PUP-B USB PC PS2 PS3 12 Botones Vibrador",
     "precio": "PEN 45.00",
     "descripcion": "Gamepad ENKORE con 12 botones y vibración, compatible con PC, PS2 y PS3.",
-    "categoria": "OFERTAS"
+    "categoria": "OFERTAS",
+    "image_url": "/images/img4.png"
+
   },
   {
     "id": 145,
     "nombre": "Gamepad ENKORE Lithium ENG1003PUP-W Wireless PC PS2 PS3 12 Botones Vibrador",
     "precio": "PEN 50.00",
     "descripcion": "Gamepad inalámbrico ENKORE con 12 botones y vibración, compatible con PC, PS2 y PS3.",
-    "categoria": "OFERTAS"
+    "categoria": "OFERTAS",
+    "image_url": "/images/img4.png"
+
   },
   {
     "id": 146,
     "nombre": "Mando CYBERTEL KILLER CYB G803BT Wireless PC iOS 14 Botones Vibrador | Inalambrico",
     "precio": "PEN 49.00",
     "descripcion": "Mando inalámbrico CYBERTEL KILLER con 14 botones y vibración, compatible con PC y iOS.",
-    "categoria": "OFERTAS"
+    "categoria": "OFERTAS",
+    "image_url": "/images/img4.png"
+
   },
   {
     "id": 147,
     "nombre": "Mini Speaker Bluetooth Minions",
     "precio": "PEN 30.00",
     "descripcion": "Mini altavoz Bluetooth con diseño de Minions.",
-    "categoria": "OFERTAS"
+    "categoria": "OFERTAS",
+    "image_url": "/images/img4.png"
+
   },
   {
     "id": 148,
     "nombre": "Mochila TEROS 15.6 Pulgadas / Celeste y Azul",
     "precio": "PEN 29.00",
     "descripcion": "Mochila TEROS de 15.6 pulgadas en colores celeste y azul.",
-    "categoria": "OFERTAS"
+    "categoria": "OFERTAS",
+    "image_url": "/images/img4.png"
+
   },
   {
     "id": 149,
     "nombre": "Tablet ADVANCE Intro TR3947, 7\" IPS 1024x600, Android 9, 16GB, 1GB RAM, Wi-Fi, Bluetooth",
     "precio": "PEN 259.00",
     "descripcion": "Tablet ADVANCE de 7\" con resolución IPS, Android 9, 16GB de almacenamiento y 1GB de RAM.",
-    "categoria": "Tablets y Celulares"
+    "categoria": "Tablets y Celulares",
+    "image_url": "/images/img4.png"
   },
   {
     "id": 150,
